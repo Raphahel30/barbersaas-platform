@@ -160,12 +160,17 @@ export async function middleware(request: NextRequest) {
   }
   const requestHeaders = createRequestHeaders(request)
   const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1'
+  const isPlatformDomain =
+    hostname.endsWith('.netlify.app') ||
+    hostname.endsWith('.vercel.app') ||
+    hostname.endsWith('.pages.dev')
   const rootSuffix = `.${rootHostname}`
   const rootSubdomain = hostname.endsWith(rootSuffix)
     ? hostname.slice(0, -rootSuffix.length)
     : null
   const isMainDomain =
     isLocalhost ||
+    isPlatformDomain ||
     hostname === rootHostname ||
     (rootSubdomain !== null && RESERVED_SUBDOMAINS.has(rootSubdomain))
 
