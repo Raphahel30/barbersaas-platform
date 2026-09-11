@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/expire-holds",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/booking-reminders",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/expire-retention",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/check-past-due",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}

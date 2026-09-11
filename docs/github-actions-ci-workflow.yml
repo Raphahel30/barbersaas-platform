@@ -1,0 +1,95 @@
+name: CI/CD Pipeline - Barbearia SaaS
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  NODE_ENV: production
+  NEXT_PUBLIC_SUPABASE_URL: "https://testproject.supabase.co"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummyanonkey1234567890"
+  SUPABASE_SERVICE_ROLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummyservicerolekey1234567890"
+  ASAAS_API_KEY: "dummy_asaas_api_key_1234567890"
+  ASAAS_WEBHOOK_TOKEN: "dummy_webhook_token_123456"
+  CRON_SECRET: "super_secret_cron_token_123456"
+  MASTER_ADMIN_EMAIL: "rafaelcassu@gmail.com"
+
+jobs:
+  code-quality:
+    name: Lint, Typecheck & Regras Críticas
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Instalar Dependências
+        run: npm ci
+
+      - name: Validação Estrita de Variáveis de Ambiente
+        run: npm run check-env
+
+      - name: Verificação de Tipagem TypeScript (tsc)
+        run: npx tsc --noEmit
+
+      - name: Testes Unitários de Regras Críticas de Negócio
+        run: npm run test:critical
+
+      - name: Compilação de Produção Next.js (Build)
+        run: npm run build
+
+  e2e-tests:
+    name: Testes End-to-End (Playwright)
+    needs: code-quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Instalar Dependências
+        run: npm ci
+
+      - name: Instalar Navegadores do Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Executar Testes E2E com Playwright
+        run: npx playwright test
+        env:
+          CI: true
+
+      - name: Upload de Relatório Playwright
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  deploy:
+    name: Deploy Automatizado (Vercel / Cloudflare)
+    needs: [code-quality, e2e-tests]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Notificação de Entrada em Produção
+        run: |
+          echo "🚀 Pipeline validada com sucesso!"
+          echo "Deploy acionado automaticamente via integração Git da Vercel para a branch main."

@@ -1,0 +1,203 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-inter: 'Inter', sans-serif;
+  --font-outfit: 'Outfit', sans-serif;
+
+  /* Default SaaS Theme */
+  --primary: #f59e0b;
+  --primary-hover: #d97706;
+  --primary-glow: rgba(245, 158, 11, 0.25);
+  --secondary: #10b981;
+  --bg-dark: #09090b;
+  --bg-card: #18181b;
+  --bg-card-hover: #27272a;
+  --border-color: #27272a;
+  --border-focus: #f59e0b;
+  --text-main: #f4f4f5;
+  --text-muted: #a1a1aa;
+
+  /* Tenant Dynamic Tokens */
+  --tenant-primary: #f59e0b;
+  --tenant-secondary: #d97706;
+  --tenant-bg: #09090b;
+  --tenant-surface: #18181b;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  font-family: var(--font-inter);
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  min-height: 100vh;
+  overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-outfit);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Glassmorphism & Surface Utilities */
+.glass-panel {
+  background: rgba(24, 24, 27, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-card {
+  background: rgba(24, 24, 27, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 1rem;
+  transition: all 0.2s ease-in-out;
+}
+
+.glass-card:hover {
+  border-color: rgba(245, 158, 11, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 20px -5px var(--primary-glow);
+}
+
+/* Gold Gradient Effects */
+.gold-gradient-text {
+  background: linear-gradient(135deg, #fef08a 0%, #f59e0b 50%, #b45309 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gold-gradient-bg {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.gold-button {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #000;
+  font-weight: 700;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+}
+
+.gold-button:hover:not(:disabled) {
+  opacity: 0.95;
+  transform: scale(1.02);
+  box-shadow: 0 0 20px var(--primary-glow);
+}
+
+.gold-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Mobile Touch Targets */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #09090b;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+/* Animations */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(245, 158, 11, 0.4);
+  }
+}
+
+.glow-animation {
+  animation: pulse-glow 3s infinite ease-in-out;
+}
+
+/* Form Styles */
+input, select, textarea {
+  font-family: inherit;
+}
+
+.input-field {
+  width: 100%;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  color: #f4f4f5;
+  font-size: 0.95rem;
+  min-height: 48px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input-field:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.input-field::placeholder {
+  color: #71717a;
+}
+
+/* Textures */
+.texture-wood {
+  background-color: #0f0a05;
+  background-image: radial-gradient(#2b1d0c 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.texture-vintage {
+  background-color: #0d0e12;
+  background-image: radial-gradient(#1f2430 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.texture-minimal {
+  background-color: #09090b;
+  background-image: linear-gradient(to right, #141416 1px, transparent 1px),
+                    linear-gradient(to bottom, #141416 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.texture-geometric {
+  background-color: #09090b;
+  background-image: radial-gradient(circle at 50% 50%, #1c1917 2px, transparent 2px);
+  background-size: 24px 24px;
+}
