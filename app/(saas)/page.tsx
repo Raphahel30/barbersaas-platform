@@ -256,12 +256,12 @@ export default function SaasLandingPage() {
             >
               Entrar
             </Link>
-            <button
-              onClick={() => setIsOnboardingOpen(true)}
-              className="gold-button text-xs sm:text-sm px-4 sm:px-5 py-2.5 min-h-[42px]"
+            <Link
+              href="/comecar"
+              className="gold-button text-xs sm:text-sm px-4 sm:px-5 py-2.5 min-h-[42px] flex items-center"
             >
               Começar Grátis
-            </button>
+            </Link>
           </div>
         </div>
       </header>
@@ -308,13 +308,13 @@ export default function SaasLandingPage() {
 
         {/* Ações Primárias (CTAs) */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto mb-16 scroll-reveal">
-          <button
-            onClick={() => setIsOnboardingOpen(true)}
-            className="gold-button text-sm sm:text-base px-8 py-4 w-full sm:w-auto shadow-2xl shadow-[#d4af37]/25"
+          <Link
+            href="/comecar"
+            className="gold-button text-sm sm:text-base px-8 py-4 w-full sm:w-auto shadow-2xl shadow-[#d4af37]/25 flex items-center justify-center gap-2"
           >
             <span>Cadastrar Barbearia Grátis</span>
             <ArrowRight className="w-4 h-4" />
-          </button>
+          </Link>
           <Link
             href="/demo"
             className="crimson-button text-sm sm:text-base px-8 py-4 w-full sm:w-auto text-center flex items-center justify-center gap-2"
@@ -632,19 +632,16 @@ export default function SaasLandingPage() {
                   </ul>
                 </div>
 
-                <button
-                  onClick={() => {
-                    setSelectedPlanId(p.id)
-                    setIsOnboardingOpen(true)
-                  }}
-                  className={`w-full py-3.5 px-4 rounded-xl text-sm font-cinzel font-bold transition-all ${
+                <Link
+                  href="/comecar"
+                  className={`w-full py-3.5 px-4 rounded-xl text-sm font-cinzel font-bold transition-all text-center block ${
                     isFeatured
                       ? 'gold-button shadow-lg shadow-[#d4af37]/30'
                       : 'bg-[#1e1913] hover:bg-[#28221a] text-[#fbf8f1] border border-[#d4af37]/30'
                   }`}
                 >
                   Iniciar Teste Gratuito
-                </button>
+                </Link>
               </div>
             )
           })}
