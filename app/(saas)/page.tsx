@@ -186,6 +186,7 @@ export default function SaasLandingPage() {
             alt="Navalio Carregando"
             width={64}
             height={64}
+            priority
             className="rounded-full animate-pulse border border-[#d4af37]/40 shadow-xl shadow-[#d4af37]/20"
           />
         </div>
@@ -208,7 +209,7 @@ export default function SaasLandingPage() {
           isScrolled ? 'glass-panel glass-panel-scrolled' : 'bg-[#080706]/80 backdrop-blur-md border-b border-[#d4af37]/15'
         }`}
       >
-        <div className="w-full max-w-7xl mx-auto flex items-center justify-between">
+        <div className="w-full max-w-6xl mx-auto px-4 flex items-center justify-between">
           {/* Logo & Marca Navalio */}
           <Link href="/" className="flex items-center gap-3 group">
             <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-[#d4af37]/70 shadow-lg shadow-[#d4af37]/20 group-hover:border-[#d4af37] transition-all transform group-hover:scale-105">
@@ -266,7 +267,7 @@ export default function SaasLandingPage() {
       </header>
 
       {/* 2. HERO SECTION COM O MEDALHÃO CIRCULAR ILUMINADO */}
-      <section className="relative pt-10 pb-20 sm:pt-16 sm:pb-28 px-4 sm:px-6 w-full max-w-7xl mx-auto flex flex-col items-center text-center">
+      <section className="relative pt-10 pb-20 sm:pt-16 sm:pb-28 px-4 sm:px-6 w-full max-w-6xl mx-auto flex flex-col items-center text-center">
         {/* Efeitos de Luz Atmosférica em Ouro e Carmesim */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -z-10 pointer-events-none">
           <div className="w-[500px] sm:w-[750px] h-[500px] bg-gradient-to-tr from-[#9b1b1b]/15 via-[#d4af37]/20 to-transparent blur-[150px] rounded-full gold-halo-pulse" />
@@ -359,7 +360,7 @@ export default function SaasLandingPage() {
 
       {/* 3. PROVA SOCIAL & NÚMEROS DA CONFRARIA */}
       <section className="py-14 border-y border-[#d4af37]/20 bg-[#100d0a]/70 w-full relative">
-        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="w-full max-w-6xl mx-auto px-4 sm:px-6">
           <p className="text-center text-xs font-cinzel font-bold text-[#d4af37] uppercase tracking-[0.25em] mb-8">
             Autoridade Comprovada em Centenas de Barbearias no Brasil
           </p>
@@ -385,7 +386,7 @@ export default function SaasLandingPage() {
       </section>
 
       {/* 4. SEÇÃO: A TRÍADE DA IDENTIDADE NAVALIO (VITRINE DAS 3 LOGOS) */}
-      <section id="confraria" className="py-24 px-4 sm:px-6 w-full max-w-7xl mx-auto">
+      <section id="confraria" className="py-24 px-4 sm:px-6 w-full max-w-6xl mx-auto">
         <div className="text-center max-w-3xl mx-auto mb-16 scroll-reveal">
           <span className="text-xs font-cinzel font-bold text-[#d4af37] uppercase tracking-widest px-3.5 py-1.5 rounded-full bg-[#1c1813] border border-[#d4af37]/30">
             A Identidade da Marca
@@ -482,7 +483,7 @@ export default function SaasLandingPage() {
       </section>
 
       {/* 5. MÓDULOS DE GESTÃO OLD-SCHOOL DE ALTA PERFORMANCE */}
-      <section id="modulos" className="py-24 px-4 sm:px-6 w-full max-w-7xl mx-auto border-t border-[#d4af37]/15">
+      <section id="modulos" className="py-24 px-4 sm:px-6 w-full max-w-6xl mx-auto border-t border-[#d4af37]/15">
         <div className="text-center max-w-3xl mx-auto mb-16 scroll-reveal">
           <span className="text-xs font-cinzel font-bold text-[#d4af37] uppercase tracking-widest px-3 py-1 rounded-full bg-[#1c1813] border border-[#d4af37]/25">
             Engenharia de Ponta
@@ -561,7 +562,7 @@ export default function SaasLandingPage() {
       </section>
 
       {/* 6. TABELA DE PLANOS DE ASSINATURA */}
-      <section id="precos" className="py-24 px-4 sm:px-6 w-full max-w-7xl mx-auto border-t border-[#d4af37]/15">
+      <section id="precos" className="py-24 px-4 sm:px-6 w-full max-w-6xl mx-auto border-t border-[#d4af37]/15">
         <div className="text-center max-w-2xl mx-auto mb-16 scroll-reveal">
           <span className="text-xs font-cinzel font-bold text-[#d4af37] uppercase tracking-widest bg-[#1c1813] px-3.5 py-1.5 rounded-full border border-[#d4af37]/30">
             Valores Transparentes
@@ -653,7 +654,7 @@ export default function SaasLandingPage() {
       {/* 7. DEPOIMENTOS DA CONFRARIA */}
       {content.testimonials.enabled && (
         <section id="depoimentos" className="py-24 px-4 sm:px-6 w-full border-t border-[#d4af37]/15 bg-[#100d0a]/60">
-          <div className="w-full max-w-7xl mx-auto">
+          <div className="w-full max-w-6xl mx-auto">
             <div className="text-center max-w-2xl mx-auto mb-16 scroll-reveal">
               <span className="text-xs font-cinzel font-bold text-[#d4af37] uppercase tracking-widest bg-[#1c1813] px-3.5 py-1.5 rounded-full border border-[#d4af37]/30">
                 A Voz dos Mestres Barbeiros
@@ -739,7 +740,7 @@ export default function SaasLandingPage() {
 
       {/* 9. RODAPÉ SOBERANO NAVALIO */}
       <footer className="border-t border-[#d4af37]/20 py-16 px-4 sm:px-8 text-center text-xs text-[#a89e90] w-full bg-[#070605]">
-        <div className="w-full max-w-7xl mx-auto flex flex-col items-center">
+        <div className="w-full max-w-6xl mx-auto flex flex-col items-center">
           {/* Logo Horizontal de Fechamento */}
           <div className="w-56 sm:w-72 mb-6">
             <Image

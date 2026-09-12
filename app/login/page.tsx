@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Scissors, Lock, Mail, ArrowRight, AlertCircle, Loader2, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Scissors, Lock, Mail, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 import { signIn } from '@/app/actions/auth';
 
 export default function LoginPage() {
@@ -46,16 +46,18 @@ export default function LoginPage() {
       <div className="w-full max-w-md bg-zinc-900/90 border border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur relative z-10">
         {/* Brand header */}
         <div className="flex flex-col items-center text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 mb-4 group">
-            <div className="w-12 h-12 rounded-2xl gold-gradient-bg flex items-center justify-center text-black font-extrabold text-2xl shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform">
-              <Scissors className="w-6 h-6 text-black" />
+          <Link href="/" className="inline-flex flex-col items-center gap-2 mb-4 group">
+            <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-amber-500/50 shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/branding/navalio-icon-n.jpg" alt="Navalio" className="w-full h-full object-cover" />
             </div>
+            <span className="font-cinzel font-black text-xl tracking-wider gold-gradient-text">NAVALIO</span>
           </Link>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-outfit">
-            Acesse sua Conta
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-cinzel">
+            Acesso Soberano
           </h1>
-          <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-            Entre no painel de gestão da sua barbearia
+          <p className="text-xs sm:text-sm text-zinc-400 mt-1 font-sans">
+            Entre no ecossistema de gestão da sua barbearia
           </p>
         </div>
 
@@ -125,26 +127,6 @@ export default function LoginPage() {
             )}
           </button>
         </form>
-
-        {/* Credentials helper hint */}
-        <div className="mt-6 pt-5 border-t border-zinc-800/80 text-[11px] text-zinc-400 flex flex-col gap-2 bg-zinc-950/50 p-3.5 rounded-xl border border-zinc-800/50">
-          <div className="flex items-center gap-1.5 font-semibold text-amber-400">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Acesso Rápido de Homologação:</span>
-          </div>
-          <div className="flex justify-between items-center text-zinc-300">
-            <span>Super Admin Mestre:</span>
-            <button
-              type="button"
-              onClick={() => {
-                setEmail('rafaelcassu@gmail.com');
-              }}
-              className="text-amber-400 hover:underline font-mono text-[10px]"
-            >
-              rafaelcassu@gmail.com
-            </button>
-          </div>
-        </div>
 
         {/* Footer actions */}
         <div className="mt-6 text-center space-y-2 text-xs">

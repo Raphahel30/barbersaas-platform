@@ -137,7 +137,7 @@ export default function DemoPage() {
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans w-full items-center">
       {/* Top Banner Navigation */}
       <header className="sticky top-0 z-50 bg-neutral-900/90 backdrop-blur border-b border-neutral-800 px-4 py-3 sm:px-6 w-full">
-        <div className="max-w-7xl mx-auto w-full flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto w-full px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2.5 text-amber-400 font-bold text-lg hover:text-amber-300 transition group">
               <div className="w-7 h-7 rounded-lg overflow-hidden border border-amber-500/40 shadow-sm shadow-amber-500/20 shrink-0">
@@ -220,7 +220,7 @@ export default function DemoPage() {
       )}
 
       {/* Main Sandbox Container */}
-      <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
+      <main className="flex-1 max-w-6xl mx-auto w-full p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
         {/* Helper Banner */}
         <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
