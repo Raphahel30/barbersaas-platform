@@ -5,25 +5,32 @@
 :root {
   --font-inter: 'Inter', sans-serif;
   --font-outfit: 'Outfit', sans-serif;
+  --font-cinzel: 'Cinzel', serif;
 
-  /* Default SaaS Theme */
-  --primary: #f59e0b;
-  --primary-hover: #d97706;
-  --primary-glow: rgba(245, 158, 11, 0.25);
-  --secondary: #10b981;
-  --bg-dark: #09090b;
-  --bg-card: #18181b;
-  --bg-card-hover: #27272a;
-  --border-color: #27272a;
-  --border-focus: #f59e0b;
-  --text-main: #f4f4f5;
-  --text-muted: #a1a1aa;
+  /* Navalio Old-School Sovereign Theme */
+  --navalio-charcoal: #080706;
+  --navalio-dark-surface: #120f0c;
+  --navalio-card: #181410;
+  --navalio-card-hover: #221c17;
+  --navalio-gold: #d4af37;
+  --navalio-gold-light: #f7e7a9;
+  --navalio-gold-dark: #96751c;
+  --navalio-crimson: #9b1b1b;
+  --navalio-crimson-bright: #dc2626;
+  --navalio-parchment: #fbf8f1;
+  --navalio-muted: #a89e90;
 
-  /* Tenant Dynamic Tokens */
-  --tenant-primary: #f59e0b;
-  --tenant-secondary: #d97706;
-  --tenant-bg: #09090b;
-  --tenant-surface: #18181b;
+  --primary: #d4af37;
+  --primary-hover: #c59b27;
+  --primary-glow: rgba(212, 175, 55, 0.35);
+  --secondary: #9b1b1b;
+  --bg-dark: #080706;
+  --bg-card: #14110e;
+  --bg-card-hover: #1e1914;
+  --border-color: rgba(212, 175, 55, 0.18);
+  --border-focus: #d4af37;
+  --text-main: #fbf8f1;
+  --text-muted: #a89e90;
 }
 
 * {
@@ -33,10 +40,13 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-html,
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: var(--font-inter);
-  background-color: var(--bg-dark);
+  background-color: var(--navalio-charcoal);
   color: var(--text-main);
   min-height: 100vh;
   overflow-x: hidden;
@@ -44,65 +54,127 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Tipografia Vitoriana & Clássica */
+.font-cinzel {
+  font-family: var(--font-cinzel), serif;
+  letter-spacing: 0.02em;
+}
+
+.font-outfit {
+  font-family: var(--font-outfit), sans-serif;
+}
+
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-outfit);
+  font-family: var(--font-cinzel), serif;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.01em;
 }
 
-/* Glassmorphism & Surface Utilities */
+/* Barra de Progresso de Rolagem no Topo */
+.scroll-progress-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: transparent;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.scroll-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #9b1b1b 0%, #d4af37 50%, #fff0b3 100%);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.8), 0 0 5px rgba(220, 38, 38, 0.6);
+  width: 0%;
+  transition: width 0.08s ease-out;
+}
+
+/* Painéis de Vidro Escovado e Couro */
 .glass-panel {
-  background: rgba(24, 24, 27, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(14, 12, 10, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.2);
 }
 
-.glass-card {
-  background: rgba(24, 24, 27, 0.6);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 1rem;
-  transition: all 0.2s ease-in-out;
+.glass-panel-scrolled {
+  background: rgba(8, 7, 6, 0.95);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(212, 175, 55, 0.25);
 }
 
-.glass-card:hover {
-  border-color: rgba(245, 158, 11, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 20px -5px var(--primary-glow);
+/* Cards Old-School com Borda Metálica Fina */
+.vintage-card {
+  background: radial-gradient(circle at 50% 0%, #1c1813 0%, #100d0a 100%);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  border-radius: 1.25rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 30px rgba(0, 0, 0, 0.6);
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Gold Gradient Effects */
+.vintage-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.3) 0%, transparent 40%, rgba(155, 27, 27, 0.3) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.7;
+  transition: opacity 0.3s;
+}
+
+.vintage-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(212, 175, 55, 0.5);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.8), 0 0 25px -5px rgba(212, 175, 55, 0.25);
+}
+
+.vintage-card:hover::before {
+  opacity: 1;
+}
+
+/* Gradientes e Textos */
 .gold-gradient-text {
-  background: linear-gradient(135deg, #fef08a 0%, #f59e0b 50%, #b45309 100%);
+  background: linear-gradient(135deg, #fff7d6 0%, #d4af37 40%, #b8860b 80%, #8c6307 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-.gold-gradient-bg {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+.crimson-gradient-text {
+  background: linear-gradient(135deg, #fca5a5 0%, #dc2626 50%, #991b1b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
+/* Botões Old-School em Ouro e Carmesim */
 .gold-button {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  color: #000;
-  font-weight: 700;
+  background: linear-gradient(135deg, #f7e599 0%, #d4af37 45%, #a67c13 100%);
+  color: #0b0907;
+  font-family: var(--font-cinzel), serif;
+  font-weight: 800;
+  letter-spacing: 0.04em;
   border-radius: 0.75rem;
-  padding: 0.75rem 1.5rem;
-  min-height: 48px;
+  padding: 0.85rem 1.85rem;
+  min-height: 50px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  transition: all 0.2s ease;
-  border: none;
+  gap: 0.6rem;
+  transition: all 0.25s ease;
+  border: 1px solid rgba(255, 240, 180, 0.5);
   cursor: pointer;
+  box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
 .gold-button:hover:not(:disabled) {
-  opacity: 0.95;
-  transform: scale(1.02);
-  box-shadow: 0 0 20px var(--primary-glow);
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 8px 25px rgba(212, 175, 55, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  filter: brightness(1.05);
 }
 
 .gold-button:disabled {
@@ -110,57 +182,122 @@ h1, h2, h3, h4, h5, h6 {
   cursor: not-allowed;
 }
 
-/* Mobile Touch Targets */
-.touch-target {
-  min-height: 44px;
-  min-width: 44px;
+.crimson-button {
+  background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 60%, #450a0a 100%);
+  color: #fff;
+  font-family: var(--font-cinzel), serif;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 0.75rem;
+  padding: 0.85rem 1.85rem;
+  min-height: 50px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  transition: all 0.25s ease;
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(155, 27, 27, 0.35);
 }
 
-/* Custom Scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+.crimson-button:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 8px 25px rgba(185, 28, 28, 0.5), 0 0 15px rgba(212, 175, 55, 0.3);
+  border-color: rgba(212, 175, 55, 0.7);
 }
 
-::-webkit-scrollbar-track {
-  background: #09090b;
+/* Divisores Ornamentais */
+.ornament-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  width: 100%;
+  margin: 2rem 0;
 }
 
-::-webkit-scrollbar-thumb {
-  background: #27272a;
-  border-radius: 3px;
+.ornament-divider::before,
+.ornament-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.3), transparent);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
-}
-
-/* Animations */
-@keyframes pulse-glow {
+/* Animação Flutuante do Medalhão */
+@keyframes float-medallion {
   0%, 100% {
-    box-shadow: 0 0 15px rgba(245, 158, 11, 0.2);
+    transform: translateY(0) rotate(0deg);
   }
   50% {
-    box-shadow: 0 0 30px rgba(245, 158, 11, 0.4);
+    transform: translateY(-8px) rotate(0.5deg);
   }
 }
 
-.glow-animation {
-  animation: pulse-glow 3s infinite ease-in-out;
+.animate-medallion {
+  animation: float-medallion 6s ease-in-out infinite;
 }
 
-/* Form Styles */
-input, select, textarea {
-  font-family: inherit;
+/* Brilho e Aura Dourada */
+@keyframes gold-halo {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.04);
+  }
 }
 
+.gold-halo-pulse {
+  animation: gold-halo 5s ease-in-out infinite;
+}
+
+/* Efeito de Revelação por Rolagem (Scroll Reveal) */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.scroll-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Suporte Nativo a Scroll-Driven Animations (Modern Web Standards) */
+@media (prefers-reduced-motion: no-preference) {
+  @supports ((animation-timeline: view()) and (animation-range: entry)) {
+    .auto-scroll-reveal {
+      animation: reveal-in auto cubic-bezier(0.16, 1, 0.3, 1) both;
+      animation-timeline: view();
+      animation-range: entry 10% entry 45%;
+    }
+
+    @keyframes reveal-in {
+      from {
+        opacity: 0;
+        transform: translateY(32px) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+  }
+}
+
+/* Inputs com Tema Nobre */
 .input-field {
   width: 100%;
-  background: #18181b;
-  border: 1px solid #27272a;
+  background: #120f0c;
+  border: 1px solid rgba(212, 175, 55, 0.25);
   border-radius: 0.75rem;
   padding: 0.75rem 1rem;
-  color: #f4f4f5;
+  color: #fbf8f1;
   font-size: 0.95rem;
   min-height: 48px;
   outline: none;
@@ -168,36 +305,30 @@ input, select, textarea {
 }
 
 .input-field:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-glow);
+  border-color: #d4af37;
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.25);
 }
 
 .input-field::placeholder {
-  color: #71717a;
+  color: #71695f;
 }
 
-/* Textures */
-.texture-wood {
-  background-color: #0f0a05;
-  background-image: radial-gradient(#2b1d0c 1px, transparent 1px);
-  background-size: 20px 20px;
+/* Scrollbars Vintage */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
 }
 
-.texture-vintage {
-  background-color: #0d0e12;
-  background-image: radial-gradient(#1f2430 1px, transparent 1px);
-  background-size: 16px 16px;
+::-webkit-scrollbar-track {
+  background: #080706;
 }
 
-.texture-minimal {
-  background-color: #09090b;
-  background-image: linear-gradient(to right, #141416 1px, transparent 1px),
-                    linear-gradient(to bottom, #141416 1px, transparent 1px);
-  background-size: 32px 32px;
+::-webkit-scrollbar-thumb {
+  background: #2a221a;
+  border-radius: 4px;
+  border: 1px solid rgba(212, 175, 55, 0.15);
 }
 
-.texture-geometric {
-  background-color: #09090b;
-  background-image: radial-gradient(circle at 50% 50%, #1c1917 2px, transparent 2px);
-  background-size: 24px 24px;
+::-webkit-scrollbar-thumb:hover {
+  background: #d4af37;
 }

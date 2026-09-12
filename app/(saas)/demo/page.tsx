@@ -139,9 +139,12 @@ export default function DemoPage() {
       <header className="sticky top-0 z-50 bg-neutral-900/90 backdrop-blur border-b border-neutral-800 px-4 py-3 sm:px-6 w-full">
         <div className="max-w-7xl mx-auto w-full flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2 text-amber-400 font-bold text-lg hover:text-amber-300 transition">
-              <Scissors className="w-5 h-5" />
-              <span>BarberSaaS</span>
+            <Link href="/" className="flex items-center gap-2.5 text-amber-400 font-bold text-lg hover:text-amber-300 transition group">
+              <div className="w-7 h-7 rounded-lg overflow-hidden border border-amber-500/40 shadow-sm shadow-amber-500/20 shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/images/branding/navalio-icon-n.jpg" alt="Navalio" className="w-full h-full object-cover" />
+              </div>
+              <span className="font-cinzel tracking-wider font-extrabold text-white group-hover:text-amber-300 transition">NAVALIO</span>
             </Link>
             <span className="bg-amber-500/10 text-amber-400 text-xs px-2.5 py-1 rounded-full border border-amber-500/20 font-medium flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" />

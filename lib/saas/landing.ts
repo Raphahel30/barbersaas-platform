@@ -33,12 +33,12 @@ export type LandingContent = {
 
 export const defaultLandingContent: LandingContent = {
   hero: {
-    badgeText: 'Acelerador de Faturamento para Barbearias',
-    title: 'Transforme sua Barbearia em uma Máquina de Retenção e Lucro',
+    badgeText: 'Navalio • Gestão de Elite e Retenção para Barbearias',
+    title: 'A Precisão da Navalha Clássica. A Potência da Gestão Moderna.',
     subtitle: 'Agendamento sem atritos via WhatsApp, pagamentos multi-gateway, fechamento de caixa com repasse manual líquido e programa de fidelidade completo.',
     ctaText: 'Criar Minha Barbearia Grátis',
     secondaryCtaText: 'Ver Demonstração ao Vivo',
-    heroImageUrl: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1200&q=80',
+    heroImageUrl: '/images/branding/navalio-logo-horizontal.png',
   },
   socialProof: {
     enabled: true,

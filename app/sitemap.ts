@@ -4,7 +4,7 @@ import { createAdminClient } from '@/utils/supabase/admin'
 export const dynamic = 'force-dynamic'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'barbersaas.com.br'
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'navalio.com.br'
   const protocol = rootDomain.startsWith('localhost') ? 'http' : 'https'
   const baseUrl = `${protocol}://${rootDomain}`
 

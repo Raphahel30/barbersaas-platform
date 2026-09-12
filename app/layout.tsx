@@ -2,10 +2,15 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'BarberSaaS - Plataforma Completa de Gestão para Barbearias',
-  description: 'Sistema completo para barbearias: agendamentos inteligentes, multi-gateways de pagamento, comissões automáticas, retenção e fidelidade.',
-  keywords: ['barbearia', 'saas barbearia', 'agendamento online', 'gestao barbearia', 'sistema barbearia'],
-  authors: [{ name: 'BarberSaaS' }],
+  title: 'Navalio - Gestão de Elite e Retenção para Barbearias de Alta Performance',
+  description: 'Sistema completo para barbearias tradicionais e modernas: agendamentos sem atrito, pagamentos multi-gateways, fechamento com repasse líquido e cartão de fidelidade interativo.',
+  keywords: ['Navalio', 'barbearia', 'saas barbearia', 'sistema para barbearia', 'gestão barbearia', 'agendamento online', 'barbearia oldschool'],
+  authors: [{ name: 'Navalio' }],
+  icons: {
+    icon: '/images/branding/navalio-icon-n.jpg',
+    shortcut: '/images/branding/navalio-icon-n.jpg',
+    apple: '/images/branding/navalio-icon-n.jpg',
+  },
 }
 
 export const viewport: Viewport = {
@@ -13,7 +18,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#09090b',
+  themeColor: '#080706',
 }
 
 export default function RootLayout({
@@ -26,9 +31,12 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap"
+          rel="stylesheet"
+        />
       </head>
-      <body className="min-h-screen bg-zinc-950 text-zinc-100 antialiased selection:bg-amber-500 selection:text-black">
+      <body className="min-h-screen bg-[#080706] text-[#fbf8f1] antialiased selection:bg-[#d4af37] selection:text-black">
         {children}
       </body>
     </html>

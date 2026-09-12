@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next'
 
 export default function robots(): MetadataRoute.Robots {
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'barbersaas.com.br'
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'navalio.com.br'
   const protocol = rootDomain.startsWith('localhost') ? 'http' : 'https'
 
   return {
