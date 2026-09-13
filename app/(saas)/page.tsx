@@ -215,36 +215,23 @@ export default function SaasLandingPage() {
             <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-[#d4af37]/70 shadow-lg shadow-[#d4af37]/20 group-hover:border-[#d4af37] transition-all transform group-hover:scale-105">
               <Image
                 src="/images/branding/navalio-icon-n.jpg"
-                alt="Navalio Monograma"
+                alt="Navalio"
                 width={40}
                 height={40}
                 className="object-cover"
                 priority
               />
             </div>
-            <div className="flex flex-col">
-              <span className="font-cinzel font-black text-xl tracking-wider gold-gradient-text leading-tight">
-                NAVALIO
-              </span>
-              <span className="text-[9px] uppercase tracking-widest text-[#a89e90] font-sans font-semibold">
-                Sovereign Barbershop OS
-              </span>
-            </div>
+            <span className="font-cinzel font-black text-xl sm:text-2xl tracking-wider gold-gradient-text leading-none">
+              NAVALIO
+            </span>
           </Link>
 
           {/* Navegação Desktop */}
-          <nav className="hidden lg:flex items-center gap-7 text-xs tracking-wider uppercase font-semibold text-[#a89e90]">
-            <Link
-              href="/demo"
-              className="text-[#f7e599] hover:text-[#d4af37] transition-colors flex items-center gap-1.5 font-cinzel font-bold tracking-normal"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-[#d4af37]" />
-              Testar Demo
-            </Link>
-            <a href="#confraria" className="hover:text-[#d4af37] transition-colors">A Tríade</a>
+          <nav className="hidden lg:flex items-center gap-8 text-xs tracking-wider uppercase font-semibold text-[#a89e90]">
+            <a href="#triade" className="hover:text-[#d4af37] transition-colors">A Tríade</a>
             <a href="#modulos" className="hover:text-[#d4af37] transition-colors">Módulos</a>
             <a href="#precos" className="hover:text-[#d4af37] transition-colors">Planos</a>
-            <a href="#depoimentos" className="hover:text-[#d4af37] transition-colors">Confraria</a>
             <a href="#faq" className="hover:text-[#d4af37] transition-colors">Dúvidas</a>
           </nav>
 
@@ -386,7 +373,7 @@ export default function SaasLandingPage() {
       </section>
 
       {/* 4. SEÇÃO: A TRÍADE DA IDENTIDADE NAVALIO (VITRINE DAS 3 LOGOS) */}
-      <section id="confraria" className="py-24 px-4 sm:px-6 w-full max-w-6xl mx-auto">
+      <section id="triade" className="py-24 px-4 sm:px-6 w-full max-w-6xl mx-auto">
         <div className="text-center max-w-3xl mx-auto mb-16 scroll-reveal">
           <span className="text-xs font-cinzel font-bold text-[#d4af37] uppercase tracking-widest px-3.5 py-1.5 rounded-full bg-[#1c1813] border border-[#d4af37]/30">
             A Identidade da Marca
