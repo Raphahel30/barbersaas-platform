@@ -14,6 +14,7 @@ const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 export type AuthActionState = {
   success: boolean
   message: string
+  redirectTo?: string
   fieldErrors?: Record<string, string>
 }
 
@@ -356,31 +357,69 @@ export async function signIn(formData: FormData): Promise<AuthActionState> {
     return { success: false, message: 'E-mail ou senha incorretos.' }
   }
 
-  if (data.user.email?.toLowerCase() === SUPER_ADMIN_EMAIL) {
-    redirect('/master/dashboard')
+  // Se for o Super Admin do sistema
+  if (data.user.email?.toLowerCase() === SUPER_ADMIN_EMAIL || data.user.user_metadata?.role === 'super_admin') {
+    return {
+      success: true,
+      message: 'Autenticado com sucesso como Super Admin.',
+      redirectTo: '/master-admin',
+    }
   }
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('role,is_active')
+    .select('role,is_active,tenant_id,tenants(slug)')
     .eq('id', data.user.id)
     .maybeSingle()
 
   if (profileError || !profile || !profile.is_active) {
+    // Fallback para caso o e-mail seja do super admin
+    if (data.user.email?.toLowerCase() === SUPER_ADMIN_EMAIL) {
+      return {
+        success: true,
+        message: 'Autenticado com sucesso.',
+        redirectTo: '/master-admin',
+      }
+    }
     await supabase.auth.signOut({ scope: 'local' })
     return { success: false, message: 'Conta sem perfil ativo. Entre em contato com o suporte.' }
   }
 
+  if (profile.role === 'super_admin') {
+    return {
+      success: true,
+      message: 'Autenticado com sucesso.',
+      redirectTo: '/master-admin',
+    }
+  }
+
+  const tenantSlug = (profile.tenants as { slug?: string } | null)?.slug
+
   switch (profile.role) {
     case 'owner':
-      redirect('/dashboard')
+      return {
+        success: true,
+        message: 'Autenticado com sucesso.',
+        redirectTo: tenantSlug ? `/${tenantSlug}/admin` : '/dashboard',
+      }
     case 'barber':
-      redirect('/barber/agenda')
+      return {
+        success: true,
+        message: 'Autenticado com sucesso.',
+        redirectTo: tenantSlug ? `/${tenantSlug}/admin` : '/barber/agenda',
+      }
     case 'client':
-      redirect('/meu-perfil')
+      return {
+        success: true,
+        message: 'Autenticado com sucesso.',
+        redirectTo: tenantSlug ? `/${tenantSlug}/cliente` : '/meu-perfil',
+      }
     default:
-      await supabase.auth.signOut({ scope: 'local' })
-      return { success: false, message: 'Este perfil não possui uma área de acesso configurada.' }
+      return {
+        success: true,
+        message: 'Autenticado com sucesso.',
+        redirectTo: '/dashboard',
+      }
   }
 }
 

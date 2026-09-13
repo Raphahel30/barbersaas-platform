@@ -460,6 +460,157 @@ export async function addItemToTab(
   return { success: true, message: `${productName} adicionado à comanda!` }
 }
 
+export async function blockScheduleSlot(
+  tenantId: string,
+  tenantSlug: string,
+  data: {
+    barberId: string
+    date: string
+    startTime: string
+    endTime: string
+    reason: string
+  }
+): Promise<{ success: boolean; message: string }> {
+  const admin = createAdminClient()
+
+  const startsAt = new Date(`${data.date}T${data.startTime}:00`).toISOString()
+  const endsAt = new Date(`${data.date}T${data.endTime}:00`).toISOString()
+
+  let barberId = data.barberId
+  if (!barberId) {
+    const { data: defaultBarber } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .in('role', ['barber', 'owner'])
+      .limit(1)
+      .maybeSingle()
+    barberId = defaultBarber?.id || '00000000-0000-0000-0000-000000000000'
+  }
+
+  const { error } = await admin.from('appointments').insert({
+    tenant_id: tenantId,
+    barber_id: barberId,
+    guest_name: `[BLOQUEIO] ${data.reason || 'Intervalo / Indisponível'}`,
+    guest_phone: '00000000000',
+    is_walk_in: true,
+    starts_at: startsAt,
+    ends_at: endsAt,
+    status: 'cancelled',
+    total_amount: 0,
+    payment_method: 'cash',
+    payment_status: 'paid',
+  })
+
+  if (error) {
+    console.error('Erro ao bloquear horário:', error)
+    return { success: false, message: 'Não foi possível bloquear o horário na agenda.' }
+  }
+
+  revalidatePath(`/${tenantSlug}/admin`)
+  return { success: true, message: 'Horário bloqueado com sucesso na agenda!' }
+}
+
+export async function deleteService(
+  tenantId: string,
+  tenantSlug: string,
+  serviceId: string
+): Promise<{ success: boolean; message: string }> {
+  const admin = createAdminClient()
+
+  const { error } = await admin
+    .from('services')
+    .delete()
+    .eq('id', serviceId)
+    .eq('tenant_id', tenantId)
+
+  if (error) return { success: false, message: 'Erro ao remover serviço.' }
+
+  revalidatePath(`/${tenantSlug}/admin`)
+  return { success: true, message: 'Serviço removido com sucesso!' }
+}
+
+export async function saveProduct(
+  tenantId: string,
+  tenantSlug: string,
+  product: {
+    id?: string
+    name: string
+    price: number
+    stockQuantity: number
+    category?: string
+  }
+): Promise<{ success: boolean; message: string }> {
+  const admin = createAdminClient()
+
+  if (product.id && !product.id.startsWith('prod-')) {
+    const { error } = await admin
+      .from('products')
+      .update({
+        name: product.name,
+        price: product.price,
+        stock_quantity: product.stockQuantity,
+      })
+      .eq('id', product.id)
+      .eq('tenant_id', tenantId)
+
+    if (error) return { success: false, message: 'Erro ao atualizar produto.' }
+  } else {
+    const { error } = await admin.from('products').insert({
+      tenant_id: tenantId,
+      name: product.name,
+      price: product.price,
+      stock_quantity: product.stockQuantity,
+    })
+    if (error) return { success: false, message: 'Erro ao cadastrar produto.' }
+  }
+
+  revalidatePath(`/${tenantSlug}/admin`)
+  return { success: true, message: 'Produto salvo com sucesso!' }
+}
+
+export async function deleteProduct(
+  tenantId: string,
+  tenantSlug: string,
+  productId: string
+): Promise<{ success: boolean; message: string }> {
+  const admin = createAdminClient()
+
+  const { error } = await admin
+    .from('products')
+    .delete()
+    .eq('id', productId)
+    .eq('tenant_id', tenantId)
+
+  if (error) return { success: false, message: 'Erro ao remover produto.' }
+
+  revalidatePath(`/${tenantSlug}/admin`)
+  return { success: true, message: 'Produto removido com sucesso!' }
+}
+
+export async function closeTab(
+  tenantId: string,
+  tenantSlug: string,
+  tabId: string,
+  paymentMethod: string
+): Promise<{ success: boolean; message: string }> {
+  const admin = createAdminClient()
+
+  const { error } = await admin
+    .from('customer_tabs')
+    .update({
+      status: 'closed',
+    })
+    .eq('id', tabId)
+    .eq('tenant_id', tenantId)
+
+
+  if (error) return { success: false, message: 'Erro ao fechar comanda.' }
+
+  revalidatePath(`/${tenantSlug}/admin`)
+  return { success: true, message: `Comanda encerrada via ${paymentMethod}!` }
+}
+
 export async function updateStoreSettings(
   tenantId: string,
   tenantSlug: string,
@@ -490,3 +641,5 @@ export async function updateStoreSettings(
   revalidatePath(`/${tenantSlug}/admin`)
   return { success: true, message: 'Personalização da loja atualizada com sucesso!' }
 }
+
+

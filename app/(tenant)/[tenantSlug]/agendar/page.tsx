@@ -6,6 +6,8 @@ import { useParams } from 'next/navigation'
 import { createAppointmentHold, fetchAvailableSlots, type CreateAppointmentHoldInput } from '@/app/actions/booking'
 import { generateReservationFeePix } from '@/app/actions/checkout'
 import { joinWaitlistAction } from '@/app/actions/waitlist'
+import { checkSubscriberStatus, consumeSubscriberCut, type MonthlySubscriber } from '@/app/actions/monthly-club'
+import { Crown, Sparkles, Gift } from 'lucide-react'
 
 type ServiceItem = {
   id: string
@@ -57,10 +59,14 @@ export default function BookingFunnelPage() {
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<SlotItem | null>(null)
 
-  // Guest Details
+  // Guest Details & Subscriber Recognition
   const [guestName, setGuestName] = useState('')
   const [guestPhone, setGuestPhone] = useState('')
   const [notes, setNotes] = useState('')
+  const [subscriberInfo, setSubscriberInfo] = useState<MonthlySubscriber | null>(null)
+  const [checkingSubscriber, setCheckingSubscriber] = useState(false)
+  const [isBirthday, setIsBirthday] = useState(false)
+
 
   // Hold / Checkout State
   const [holdAppointmentId, setHoldAppointmentId] = useState<string | null>(null)
@@ -140,11 +146,47 @@ export default function BookingFunnelPage() {
     return () => clearInterval(timer)
   }, [step, countdownSeconds])
 
-  // Cálculo acumulado de valor e duração
+  // Verificação automática de Mensalista VIP ao digitar telefone
+  useEffect(() => {
+    const clean = guestPhone.replace(/\D/g, '')
+    if (clean.length >= 10 && tenantSlug) {
+      setCheckingSubscriber(true)
+      checkSubscriberStatus(tenantSlug, clean)
+        .then((res) => {
+          if (res.isSubscriber && res.subscription) {
+            setSubscriberInfo(res.subscription)
+          } else {
+            setSubscriberInfo(null)
+          }
+        })
+        .catch(() => setSubscriberInfo(null))
+        .finally(() => setCheckingSubscriber(false))
+    } else {
+      setSubscriberInfo(null)
+    }
+  }, [guestPhone, tenantSlug])
+
+  // Cálculo acumulado de valor e duração com motor de benefícios
   const selectedServices = services.filter((s) => selectedServiceIds.includes(s.id))
-  const totalPrice = selectedServices.reduce((sum, s) => sum + Number(s.price), 0)
+  const basePrice = selectedServices.reduce((sum, s) => sum + Number(s.price), 0)
   const totalDuration = selectedServices.reduce((sum, s) => sum + s.duration_minutes, 0)
-  const totalReservationFee = selectedServices.reduce((sum, s) => sum + Number(s.reservation_fee), 0)
+  const baseReservationFee = selectedServices.reduce((sum, s) => sum + Number(s.reservation_fee), 0)
+
+  // Descontos aplicados
+  const isSubscriberCovered = subscriberInfo && subscriberInfo.cuts_remaining > 0
+  let discountAmount = 0
+  let discountLabel = ''
+
+  if (isSubscriberCovered) {
+    discountAmount = basePrice // 100% coberto pelo clube
+    discountLabel = `Clube VIP (${subscriberInfo.plan_name})`
+  } else if (isBirthday) {
+    discountAmount = Math.round(basePrice * 0.2) // 20% Aniversariante
+    discountLabel = 'Bônus Aniversariante (20% OFF)'
+  }
+
+  const totalPrice = Math.max(0, basePrice - discountAmount)
+  const totalReservationFee = isSubscriberCovered ? 0 : baseReservationFee
 
   const toggleService = (id: string) => {
     setSelectedServiceIds((prev) =>
@@ -182,7 +224,13 @@ export default function BookingFunnelPage() {
         startsAt: selectedSlot.startsAt,
         guestName: guestName.trim(),
         guestPhone: guestPhone.trim(),
-        notes: notes.trim() || undefined,
+        notes: notes.trim()
+          ? `${notes.trim()}${isSubscriberCovered ? ' [MENSALISTA VIP]' : ''}${isBirthday ? ' [ANIVERSARIANTE]' : ''}`
+          : isSubscriberCovered
+          ? '[MENSALISTA VIP]'
+          : isBirthday
+          ? '[ANIVERSARIANTE]'
+          : undefined,
       }
 
       const holdRes = await createAppointmentHold(holdInput)
@@ -193,11 +241,16 @@ export default function BookingFunnelPage() {
       }
 
       setHoldAppointmentId(holdRes.data.appointmentId)
-      setReservationFee(holdRes.data.reservationFee)
+      setReservationFee(totalReservationFee)
       setCountdownSeconds(300)
 
+      // Se é mensalista, já debita 1 corte
+      if (isSubscriberCovered && subscriberInfo) {
+        await consumeSubscriberCut(subscriberInfo.id)
+      }
+
       // Se há sinal de reserva, gera o Pix
-      if (holdRes.data.reservationFee > 0) {
+      if (totalReservationFee > 0) {
         const pixRes = await generateReservationFeePix(holdRes.data.appointmentId)
         if (pixRes.success && pixRes.data) {
           setPixData({
@@ -222,6 +275,7 @@ export default function BookingFunnelPage() {
 
   const minutesRemaining = Math.floor(countdownSeconds / 60)
   const secondsRemaining = countdownSeconds % 60
+
 
   const handleJoinWaitlist = async () => {
     if (!guestPhone.trim() || guestPhone.replace(/\D/g, '').length < 8) {
@@ -549,9 +603,50 @@ export default function BookingFunnelPage() {
                   className="input-field text-sm"
                 />
               </div>
+
+              {/* VIP Subscriber Card Banner */}
+              {subscriberInfo && (
+                <div className="p-3.5 rounded-xl bg-gradient-to-r from-[#1c1813] to-[#2a2217] border border-[#d4af37]/50 shadow-lg space-y-1">
+                  <div className="flex items-center gap-2 text-[#d4af37] text-xs font-bold font-cinzel">
+                    <Crown className="w-4 h-4 text-[#d4af37]" />
+                    <span>Membro VIP Reconhecido!</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-300">
+                    Plano: <strong>{subscriberInfo.plan_name}</strong> • Saldo:{' '}
+                    <strong className="text-emerald-400 font-bold">
+                      {subscriberInfo.cuts_remaining} cortes restantes
+                    </strong>
+                  </p>
+                  <p className="text-[10px] text-amber-300">
+                    ✨ Este agendamento será 100% coberto pelo seu plano (Sem cobrança de sinal!).
+                  </p>
+                </div>
+              )}
+
+              {/* Aniversariante Toggle */}
+              {!subscriberInfo && (
+                <label className="flex items-center gap-2 p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 cursor-pointer hover:border-amber-500/40 transition">
+                  <input
+                    type="checkbox"
+                    checked={isBirthday}
+                    onChange={(e) => setIsBirthday(e.target.checked)}
+                    className="rounded border-zinc-700 text-amber-500 focus:ring-amber-500"
+                  />
+                  <div className="text-xs">
+                    <span className="font-bold text-white flex items-center gap-1.5">
+                      <Gift className="w-3.5 h-3.5 text-amber-400" />
+                      É meu aniversário este mês!
+                    </span>
+                    <span className="text-[10px] text-zinc-400 block">
+                      Receba 20% de desconto especial na comemoração do seu dia.
+                    </span>
+                  </div>
+                </label>
+              )}
             </div>
           </div>
         )}
+
 
         {/* PASSO 4: CHECKOUT DO SINAL (HOLD PIX 5 MINUTOS) */}
         {step === 4 && (

@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Scissors, Lock, Mail, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import { Lock, Mail, ArrowRight, AlertCircle, Loader2, X } from 'lucide-react';
 import { signIn } from '@/app/actions/auth';
 
 export default function LoginPage() {
@@ -10,6 +10,17 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Permite fechar a tela pressionando a tecla ESC
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        window.location.href = '/';
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -22,16 +33,14 @@ export default function LoginPage() {
       formData.append('password', password);
 
       const res = await signIn(formData);
-      if (res && !res.success) {
-        setErrorMessage(res.message || 'E-mail ou senha incorretos.');
+      if (res && res.success) {
+        // Redirecionamento completo do navegador para atualizar os cookies de sessão
+        window.location.href = res.redirectTo || '/master-admin';
+      } else {
+        setErrorMessage(res?.message || 'E-mail ou senha incorretos.');
         setLoading(false);
       }
-      // If successful, signIn triggers a server-side redirect
     } catch (err: unknown) {
-      // In Next.js, redirect() throws a NEXT_REDIRECT error which is normal
-      if (err && typeof err === 'object' && 'digest' in err && typeof (err as { digest: string }).digest === 'string' && (err as { digest: string }).digest.startsWith('NEXT_REDIRECT')) {
-        return;
-      }
       setErrorMessage(err instanceof Error ? err.message : 'Erro ao processar login.');
       setLoading(false);
     }
@@ -43,7 +52,16 @@ export default function LoginPage() {
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-amber-500/10 blur-[140px] rounded-full pointer-events-none" />
 
       {/* Main card */}
-      <div className="w-full max-w-md bg-zinc-900/90 border border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur relative z-10">
+      <div className="w-full max-w-md bg-zinc-900/95 border border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur relative z-10 animate-in fade-in zoom-in-95 duration-200">
+        {/* Botão de Fechar / Sair (X) */}
+        <Link
+          href="/"
+          className="absolute top-5 right-5 p-2 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all group"
+          title="Fechar e voltar para a página inicial (ESC)"
+        >
+          <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-200" />
+        </Link>
+
         {/* Brand header */}
         <div className="flex flex-col items-center text-center mb-8">
           <Link href="/" className="inline-flex flex-col items-center gap-2 mb-4 group">
@@ -132,12 +150,12 @@ export default function LoginPage() {
         <div className="mt-6 text-center space-y-2 text-xs">
           <p className="text-zinc-400">
             Ainda não tem conta?{' '}
-            <Link href="/demo" className="text-amber-400 hover:text-amber-300 font-semibold underline">
-              Testar Demo Grátis
+            <Link href="/comecar" className="text-amber-400 hover:text-amber-300 font-semibold underline">
+              Cadastrar Barbearia Grátis
             </Link>
           </p>
           <div>
-            <Link href="/" className="text-zinc-500 hover:text-zinc-300 text-[11px] transition">
+            <Link href="/" className="text-zinc-500 hover:text-zinc-300 text-[11px] transition inline-flex items-center gap-1">
               ← Voltar para a Página Inicial
             </Link>
           </div>
