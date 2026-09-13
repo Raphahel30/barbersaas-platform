@@ -1,10 +1,3 @@
--- Migration: Waitlist, Service Consumables and Arrived Appointment Status
--- Phase 16
-
--- Add 'arrived' to appointment_status if not present
-alter type public.appointment_status add value if not exists 'arrived';
-
--- Waitlist table
 create table if not exists public.waitlist (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references public.tenants(id) on delete cascade,
@@ -25,7 +18,6 @@ create table if not exists public.waitlist (
 create index if not exists waitlist_tenant_date_idx on public.waitlist (tenant_id, requested_date, status);
 create index if not exists waitlist_claim_token_idx on public.waitlist (claim_token);
 
--- Service Consumables (Ficha técnica de insumos por serviço)
 create table if not exists public.service_consumables (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references public.tenants(id) on delete cascade,
@@ -38,22 +30,23 @@ create table if not exists public.service_consumables (
 
 create index if not exists service_consumables_service_idx on public.service_consumables (service_id);
 
--- Alter products for min stock threshold and unit
 alter table public.products 
   add column if not exists min_stock_threshold numeric(10, 2) not null default 5,
   add column if not exists unit text default 'un';
 
--- RLS policies for waitlist
 alter table public.waitlist enable row level security;
 
+drop policy if exists "waitlist public insert" on public.waitlist;
 create policy "waitlist public insert" on public.waitlist 
   for insert to anon, authenticated 
   with check (true);
 
+drop policy if exists "waitlist client view own" on public.waitlist;
 create policy "waitlist client view own" on public.waitlist 
   for select to authenticated 
   using (client_id = auth.uid());
 
+drop policy if exists "waitlist tenant staff manage" on public.waitlist;
 create policy "waitlist tenant staff manage" on public.waitlist 
   for all to authenticated 
   using (
@@ -62,9 +55,9 @@ create policy "waitlist tenant staff manage" on public.waitlist
     )
   );
 
--- RLS policies for service_consumables
 alter table public.service_consumables enable row level security;
 
+drop policy if exists "service_consumables tenant staff manage" on public.service_consumables;
 create policy "service_consumables tenant staff manage" on public.service_consumables 
   for all to authenticated 
   using (
@@ -73,6 +66,7 @@ create policy "service_consumables tenant staff manage" on public.service_consum
     )
   );
 
+drop policy if exists "service_consumables staff read" on public.service_consumables;
 create policy "service_consumables staff read" on public.service_consumables 
   for select to authenticated 
   using (

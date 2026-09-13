@@ -1,7 +1,3 @@
--- Migration: 20260911100000_phase20_tabs_signatures_perks_backup.sql
--- Description: Fase 20 - Comanda Digital de Bar/Conveniência, Assinatura Eletrônica em Tela Touch, Convênios B2B e Backup Criptografado
-
--- 1. Comandas de Bar, Drinks & Conveniência
 CREATE TABLE IF NOT EXISTS customer_tabs (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -35,7 +31,6 @@ CREATE TABLE IF NOT EXISTS customer_tab_items (
 
 CREATE INDEX IF NOT EXISTS idx_customer_tab_items_tab ON customer_tab_items(tab_id);
 
--- 2. Assinatura Eletrônica em Tela Touch com Auditoria Jurídica
 CREATE TABLE IF NOT EXISTS electronic_signatures (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -43,7 +38,7 @@ CREATE TABLE IF NOT EXISTS electronic_signatures (
     title text NOT NULL,
     signer_id uuid REFERENCES profiles(id) ON DELETE SET NULL,
     signer_name text NOT NULL,
-    signer_document text NOT NULL, -- CPF ou CNPJ
+    signer_document text NOT NULL,
     signer_email text,
     signature_png_base64 text NOT NULL,
     sha256_hash text NOT NULL,
@@ -58,7 +53,6 @@ CREATE INDEX IF NOT EXISTS idx_electronic_signatures_tenant ON electronic_signat
 CREATE INDEX IF NOT EXISTS idx_electronic_signatures_doc ON electronic_signatures(tenant_id, document_type);
 CREATE INDEX IF NOT EXISTS idx_electronic_signatures_hash ON electronic_signatures(sha256_hash);
 
--- 3. Convênios Corporativos B2B & Parcerias Locais
 CREATE TABLE IF NOT EXISTS corporate_agreements (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -98,7 +92,6 @@ CREATE TABLE IF NOT EXISTS corporate_usages (
 CREATE INDEX IF NOT EXISTS idx_corporate_usages_agreement ON corporate_usages(agreement_id);
 CREATE INDEX IF NOT EXISTS idx_corporate_usages_tenant_billed ON corporate_usages(tenant_id, is_billed);
 
--- 4. Histórico de Backups Criptografados Externos (S3 / Cloudflare R2)
 CREATE TABLE IF NOT EXISTS backup_history (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     backup_id text NOT NULL UNIQUE,
@@ -114,7 +107,6 @@ CREATE TABLE IF NOT EXISTS backup_history (
 
 CREATE INDEX IF NOT EXISTS idx_backup_history_created ON backup_history(created_at DESC);
 
--- 5. Políticas de Segurança RLS (Row Level Security)
 ALTER TABLE customer_tabs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customer_tab_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE electronic_signatures ENABLE ROW LEVEL SECURITY;
@@ -122,10 +114,12 @@ ALTER TABLE corporate_agreements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE corporate_usages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE backup_history ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Tenant isolation for customer_tabs" ON customer_tabs;
 CREATE POLICY "Tenant isolation for customer_tabs"
     ON customer_tabs FOR ALL
     USING (tenant_id IN (SELECT tenant_id FROM profiles WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Tenant isolation for customer_tab_items" ON customer_tab_items;
 CREATE POLICY "Tenant isolation for customer_tab_items"
     ON customer_tab_items FOR ALL
     USING (tab_id IN (
@@ -134,18 +128,22 @@ CREATE POLICY "Tenant isolation for customer_tab_items"
         )
     ));
 
+DROP POLICY IF EXISTS "Tenant isolation for electronic_signatures" ON electronic_signatures;
 CREATE POLICY "Tenant isolation for electronic_signatures"
     ON electronic_signatures FOR ALL
     USING (tenant_id IN (SELECT tenant_id FROM profiles WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Tenant isolation for corporate_agreements" ON corporate_agreements;
 CREATE POLICY "Tenant isolation for corporate_agreements"
     ON corporate_agreements FOR ALL
     USING (tenant_id IN (SELECT tenant_id FROM profiles WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Tenant isolation for corporate_usages" ON corporate_usages;
 CREATE POLICY "Tenant isolation for corporate_usages"
     ON corporate_usages FOR ALL
     USING (tenant_id IN (SELECT tenant_id FROM profiles WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Super admin only for backup_history" ON backup_history;
 CREATE POLICY "Super admin only for backup_history"
     ON backup_history FOR ALL
     USING (EXISTS (

@@ -78,12 +78,13 @@ export default function BookingFunnelPage() {
 
   // Hold / Checkout State
   const [holdAppointmentId, setHoldAppointmentId] = useState<string | null>(null)
+  const [trackingToken, setTrackingToken] = useState<string>('')
   const [countdownSeconds, setCountdownSeconds] = useState<number>(300)
   const [reservationFee, setReservationFee] = useState<number>(0)
   const [pixData, setPixData] = useState<{
     qrCode: string | null
     qrCodeImage: string | null
-    checkoutUrl: string | null
+    checkoutUrl?: string | null
   } | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -161,15 +162,15 @@ export default function BookingFunnelPage() {
   }, [step, countdownSeconds])
 
   // 4. Polling e Supabase Realtime para confirmação real do Pix
+  // Polling seguro autorizado por tracking token a cada 2.5 segundos
   useEffect(() => {
     if (step !== 4 || !holdAppointmentId) return
 
     let isSubscribed = true
 
-    // Polling a cada 2.5 segundos
     const interval = setInterval(async () => {
       try {
-        const res = await checkAppointmentPaymentStatus(holdAppointmentId)
+        const res = await checkAppointmentPaymentStatus(holdAppointmentId, trackingToken)
         if (!isSubscribed) return
         if (res.isConfirmed) {
           setStep(5)
@@ -179,33 +180,11 @@ export default function BookingFunnelPage() {
       }
     }, 2500)
 
-    // Canal Realtime ouvindo UPDATE na linha do agendamento
-    const supabase = createClient()
-    const channel = supabase
-      .channel(`appointment-payment-${holdAppointmentId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'appointments',
-          filter: `id=eq.${holdAppointmentId}`,
-        },
-        (payload: any) => {
-          const newStatus = payload.new?.status
-          if (newStatus === 'confirmed' || newStatus === 'scheduled' || newStatus === 'completed') {
-            if (isSubscribed) setStep(5)
-          }
-        }
-      )
-      .subscribe()
-
     return () => {
       isSubscribed = false
       clearInterval(interval)
-      supabase.removeChannel(channel)
     }
-  }, [step, holdAppointmentId])
+  }, [step, holdAppointmentId, trackingToken])
 
   // Verificação automática de Mensalista VIP ao digitar telefone
   useEffect(() => {
@@ -303,13 +282,16 @@ export default function BookingFunnelPage() {
       }
 
       setHoldAppointmentId(holdRes.data.appointmentId)
-      setReservationFee(totalReservationFee)
-      setCountdownSeconds(300)
+      setTrackingToken(holdRes.data.trackingToken || '')
+      setReservationFee(holdRes.data.reservationFee)
+      setCountdownSeconds(holdRes.data.remainingSeconds || 300)
 
-      // Se for mensalista ou se o sinal for R$ 0,00, a transação atômica já confirmou o agendamento
-      const isMonthlyOrFree = (holdRes.data as any).isMonthlySubscriber || totalReservationFee === 0
-
-      if (isMonthlyOrFree) {
+      // Se o backend confirmou diretamente (mensalista, cortesia ou sinal zero), avança para a tela de confirmação
+      if (
+        holdRes.data.status === 'confirmed' ||
+        !holdRes.data.requiresPayment ||
+        holdRes.data.reservationFee <= 0
+      ) {
         setStep(5)
         return
       }
@@ -345,7 +327,7 @@ export default function BookingFunnelPage() {
     setCheckingPayment(true)
     setPaymentStatusMessage('Verificando compensação do Pix no banco...')
     try {
-      const res = await checkAppointmentPaymentStatus(holdAppointmentId)
+      const res = await checkAppointmentPaymentStatus(holdAppointmentId, trackingToken)
       if (res.isConfirmed) {
         setStep(5)
       } else if (res.status === 'expired') {

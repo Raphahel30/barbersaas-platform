@@ -1,7 +1,3 @@
--- Migration: 20260911090000_phase19_trust_score_bot_tiers_franchise.sql
--- Description: Fase 19 - Score de Confiança, Bot de Atendimento WhatsApp, Categorias de Profissionais e Franquias
-
--- 1. Tabela de Score de Confiabilidade do Cliente (Anti-No-Show)
 CREATE TABLE IF NOT EXISTS client_trust_scores (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -26,7 +22,6 @@ CREATE TABLE IF NOT EXISTS client_trust_scores (
 CREATE INDEX IF NOT EXISTS idx_client_trust_tenant_score ON client_trust_scores(tenant_id, score);
 CREATE INDEX IF NOT EXISTS idx_client_trust_tenant_phone ON client_trust_scores(tenant_id, phone);
 
--- 2. Tabela de Sessões e Transbordo do Bot de WhatsApp
 CREATE TABLE IF NOT EXISTS whatsapp_bot_sessions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -45,7 +40,6 @@ CREATE TABLE IF NOT EXISTS whatsapp_bot_sessions (
 CREATE INDEX IF NOT EXISTS idx_whatsapp_bot_tenant_phone ON whatsapp_bot_sessions(tenant_id, phone);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_bot_human_transfer ON whatsapp_bot_sessions(tenant_id, transferred_to_human);
 
--- 3. Adicionar Nível de Senioridade em Profiles e Tabela de Preços por Categoria
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS seniority_tier text CHECK (seniority_tier IN ('junior', 'pleno', 'senior', 'master')) DEFAULT 'pleno';
 
 CREATE TABLE IF NOT EXISTS service_tier_pricing (
@@ -62,7 +56,6 @@ CREATE TABLE IF NOT EXISTS service_tier_pricing (
 
 CREATE INDEX IF NOT EXISTS idx_service_tier_pricing_service ON service_tier_pricing(service_id);
 
--- 4. Tabelas de Franquias (Contratos de Royalties & Apuração Mensal)
 CREATE TABLE IF NOT EXISTS franchise_contracts (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -101,25 +94,28 @@ CREATE TABLE IF NOT EXISTS franchise_settlements (
 
 CREATE INDEX IF NOT EXISTS idx_franchise_settlements_org_period ON franchise_settlements(organization_id, period_year, period_month);
 
--- 5. RLS Policies
 ALTER TABLE client_trust_scores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE whatsapp_bot_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE service_tier_pricing ENABLE ROW LEVEL SECURITY;
 ALTER TABLE franchise_contracts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE franchise_settlements ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Tenant isolation for client_trust_scores" ON client_trust_scores;
 CREATE POLICY "Tenant isolation for client_trust_scores"
     ON client_trust_scores FOR ALL
     USING (tenant_id IN (SELECT tenant_id FROM profiles WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Tenant isolation for whatsapp_bot_sessions" ON whatsapp_bot_sessions;
 CREATE POLICY "Tenant isolation for whatsapp_bot_sessions"
     ON whatsapp_bot_sessions FOR ALL
     USING (tenant_id IN (SELECT tenant_id FROM profiles WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Tenant isolation for service_tier_pricing" ON service_tier_pricing;
 CREATE POLICY "Tenant isolation for service_tier_pricing"
     ON service_tier_pricing FOR ALL
     USING (tenant_id IN (SELECT tenant_id FROM profiles WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Org isolation for franchise_contracts" ON franchise_contracts;
 CREATE POLICY "Org isolation for franchise_contracts"
     ON franchise_contracts FOR ALL
     USING (organization_id IN (
@@ -128,6 +124,7 @@ CREATE POLICY "Org isolation for franchise_contracts"
         )
     ));
 
+DROP POLICY IF EXISTS "Org isolation for franchise_settlements" ON franchise_settlements;
 CREATE POLICY "Org isolation for franchise_settlements"
     ON franchise_settlements FOR ALL
     USING (organization_id IN (

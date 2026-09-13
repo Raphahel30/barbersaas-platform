@@ -489,7 +489,7 @@ export default function DemoPage() {
 
                           <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2 text-[11px] text-amber-300">
                             <ShieldCheck className="w-4 h-4 shrink-0" />
-                            <span>Horário pré-bloqueado por 15 min sem cobrança antecipada.</span>
+                            <span>Horário pré-bloqueado por 5 min sem cobrança antecipada.</span>
                           </div>
 
                           <button

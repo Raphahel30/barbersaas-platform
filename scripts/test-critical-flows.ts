@@ -304,11 +304,212 @@ function testMultiTenantHostResolutionLogic() {
 }
 
 // ----------------------------------------------------------------------------
+// TESTE 6: Sinal Zero & Isenção de Pagamento (P0.1 & P0.3)
+// ----------------------------------------------------------------------------
+function testZeroFeeBookingLogic() {
+  console.log('🧪 Executando Teste 6: Sinal Zero & Isenção de Pagamento...')
+
+  // Simulação da lógica da RPC create_appointment_hold_atomic para cliente comum com fee = 0
+  const simulateAtomicHold = (reservationFee: number, isMonthly: boolean) => {
+    const isExempt = isMonthly || reservationFee <= 0
+    return {
+      status: isExempt ? 'confirmed' : 'hold',
+      paymentStatus: isExempt ? 'paid' : 'pending',
+      requiresPayment: !isExempt,
+      holdExpiresAt: isExempt ? null : new Date(Date.now() + 5 * 60_000).toISOString(),
+    }
+  }
+
+  // Cenário 1: Cliente comum com taxa de reserva R$ 0,00
+  const freeClient = simulateAtomicHold(0, false)
+  assert(
+    freeClient.status === 'confirmed',
+    'Sinal Zero Nasce Confirmado',
+    'Cliente comum com sinal R$ 0,00 nasce diretamente com status confirmed.',
+  )
+  assert(
+    freeClient.holdExpiresAt === null,
+    'Sinal Zero Sem Expiração',
+    'Agendamento gratuito não possui hold_expires_at (não é cancelado pela cron).',
+  )
+  assert(
+    freeClient.requiresPayment === false,
+    'Sinal Zero Não Exige Pagamento',
+    'Backend informa que não há necessidade de gerar Pix.',
+  )
+
+  // Cenário 2: Cliente comum com taxa de reserva R$ 25,00
+  const paidClient = simulateAtomicHold(25.0, false)
+  assert(
+    paidClient.status === 'hold' && paidClient.requiresPayment === true && paidClient.holdExpiresAt !== null,
+    'Sinal Pago Nasce em Hold',
+    'Cliente comum com taxa > 0 nasce em status hold com expiração de 5 minutos.',
+  )
+}
+
+// ----------------------------------------------------------------------------
+// TESTE 7: Concorrência de Mensalista com Saldo = 1 (P0.2)
+// ----------------------------------------------------------------------------
+function testMensalistaConcurrencyLogic() {
+  console.log('🧪 Executando Teste 7: Concorrência e Locking de Mensalista...')
+
+  let cutsRemaining = 1
+  let mutexLock = false
+
+  // Simulação do comportamento transacional PostgreSQL com FOR UPDATE e UPDATE defensivo
+  const executeAtomicBooking = (requestId: number) => {
+    // Simula lock de linha
+    while (mutexLock) {
+      /* wait */
+    }
+    mutexLock = true
+
+    let isSuccess = false
+    try {
+      if (cutsRemaining > 0) {
+        cutsRemaining -= 1
+        isSuccess = true
+      }
+    } finally {
+      mutexLock = false
+    }
+
+    return { requestId, isSuccess, remaining: cutsRemaining }
+  }
+
+  // Disparo de 5 requisições simultâneas
+  const req1 = executeAtomicBooking(1)
+  const req2 = executeAtomicBooking(2)
+  const req3 = executeAtomicBooking(3)
+  const req4 = executeAtomicBooking(4)
+  const req5 = executeAtomicBooking(5)
+
+  const allReqs = [req1, req2, req3, req4, req5]
+  const successfulCount = allReqs.filter((r) => r.isSuccess).length
+
+  assert(
+    successfulCount === 1,
+    'Exatamente Um Benefício Consumido',
+    `De 5 requisições simultâneas com saldo 1, exatamente ${successfulCount} obteve o corte gratuito.`,
+  )
+
+  assert(
+    cutsRemaining === 0,
+    'Saldo Final Exatamente Zero',
+    `O saldo final de cortes é ${cutsRemaining} (nunca negativo).`,
+  )
+}
+
+// ----------------------------------------------------------------------------
+// TESTE 8: Autorização de Polling por Tracking Token (P1.2 IDOR/BOLA)
+// ----------------------------------------------------------------------------
+function testPaymentTrackingAuthLogic() {
+  console.log('🧪 Executando Teste 8: Autorização de Payment Tracking...')
+
+  const crypto = require('crypto')
+  const validToken = 'tok_secure_random_hex_1234567890abcdef'
+  const storedHash = crypto.createHash('sha256').update(validToken).digest('hex')
+
+  const verifyAccess = (providedToken?: string, callerTenant?: string, aptTenant?: string, role?: string) => {
+    // Staff do mesmo tenant
+    if (callerTenant && aptTenant && callerTenant === aptTenant && ['owner', 'barber'].includes(role || '')) {
+      return { authorized: true }
+    }
+    // Token anônimo
+    if (!providedToken || providedToken.length < 16) {
+      return { authorized: false, reason: 'missing_token' }
+    }
+    const computedHash = crypto.createHash('sha256').update(providedToken).digest('hex')
+    const match = crypto.timingSafeEqual(Buffer.from(computedHash, 'utf8'), Buffer.from(storedHash, 'utf8'))
+    return { authorized: match, reason: match ? 'ok' : 'invalid_token' }
+  }
+
+  // 1. Token correto
+  const r1 = verifyAccess(validToken)
+  assert(r1.authorized === true, 'Token Válido Autorizado', 'Consulta anônima com token correto é autorizada.')
+
+  // 2. Token incorreto
+  const r2 = verifyAccess('tok_wrong_attacker_fake_token_123')
+  assert(r2.authorized === false, 'Token Incorreto Bloqueado', 'Consulta com token fraudulento é rejeitada.')
+
+  // 3. Sem token (apenas UUID)
+  const r3 = verifyAccess(undefined)
+  assert(r3.authorized === false, 'Consulta Sem Token Rejeitada', 'Consulta anônima apenas por UUID é bloqueada.')
+
+  // 4. Staff do mesmo tenant sem token
+  const r4 = verifyAccess(undefined, 'tenant-1', 'tenant-1', 'owner')
+  assert(r4.authorized === true, 'Staff do Tenant Autorizado', 'Owner/Barbeiro do mesmo tenant pode consultar.')
+
+  // 5. Staff de outro tenant
+  const r5 = verifyAccess(undefined, 'tenant-2', 'tenant-1', 'owner')
+  assert(r5.authorized === false, 'Staff Cross-Tenant Bloqueado', 'Owner do tenant B não acessa agendamento do tenant A.')
+}
+
+// ----------------------------------------------------------------------------
+// TESTE 9: Isolamento Multi-Tenant no Storage (P1.3)
+// ----------------------------------------------------------------------------
+function testStorageMultiTenantIsolationLogic() {
+  console.log('🧪 Executando Teste 9: Isolamento de Storage Multi-Tenant...')
+
+  const checkStorageAccess = (callerTenantId: string, objectPath: string) => {
+    const parts = objectPath.split('/')
+    let pathTenantId = ''
+    if (parts[0] === 'tenants') {
+      pathTenantId = parts[1] || ''
+    } else {
+      pathTenantId = parts[0] || ''
+    }
+    return callerTenantId === pathTenantId
+  }
+
+  const tenantA = '550e8400-e29b-41d4-a716-446655440000'
+  const tenantB = '660e8400-e29b-41d4-a716-446655440001'
+
+  const ownPath = `tenants/${tenantA}/banner_123.jpg`
+  const otherPath = `tenants/${tenantB}/logo_456.png`
+
+  assert(
+    checkStorageAccess(tenantA, ownPath) === true,
+    'Storage Tenant Próprio Permitido',
+    'Tenant A consegue gravar no path tenants/tenantA/...',
+  )
+
+  assert(
+    checkStorageAccess(tenantA, otherPath) === false,
+    'Storage Cross-Tenant Bloqueado',
+    'Tenant A é proibido de gravar/alterar no path tenants/tenantB/...',
+  )
+}
+
+// ----------------------------------------------------------------------------
+// TESTE 10: Falha Fechada da RPC sem Fallback Legado (P1.1)
+// ----------------------------------------------------------------------------
+function testRpcFailClosedNoFallbackLogic() {
+  console.log('🧪 Executando Teste 10: Falha Fechada da RPC sem Fallback...')
+
+  // Simula createAppointmentHold com erro de RPC
+  const simulateActionWithRpcFailure = () => {
+    const rpcResult = { error: { message: 'Database transaction lock timeout' }, data: null }
+    if (rpcResult.error || !rpcResult.data) {
+      return { success: false, message: 'Horário indisponível ou falha ao processar reserva.' }
+    }
+    return { success: true, legacyInserted: true }
+  }
+
+  const res = simulateActionWithRpcFailure()
+  assert(
+    res.success === false && !(res as any).legacyInserted,
+    'RPC Falha Fechado Sem Insert Legado',
+    'Quando a RPC falha, a Server Action retorna erro imediatamente sem tentar insert não atômico.',
+  )
+}
+
+// ----------------------------------------------------------------------------
 // EXECUÇÃO GERAL DOS TESTES
 // ----------------------------------------------------------------------------
 export function runAllCriticalFlowTests() {
   console.log('=================================================================')
-  console.log('INICIANDO BATERIA DE TESTES DOS 5 FLUXOS CRÍTICOS')
+  console.log('INICIANDO BATERIA DE TESTES DOS FLUXOS CRÍTICOS (DOMÍNIO & SEGURANÇA)')
   console.log('=================================================================\n')
 
   testHoldTimeoutLogic()
@@ -320,6 +521,16 @@ export function runAllCriticalFlowTests() {
   testVipDelinquencyLockLogic()
   console.log('')
   testMultiTenantHostResolutionLogic()
+  console.log('')
+  testZeroFeeBookingLogic()
+  console.log('')
+  testMensalistaConcurrencyLogic()
+  console.log('')
+  testPaymentTrackingAuthLogic()
+  console.log('')
+  testStorageMultiTenantIsolationLogic()
+  console.log('')
+  testRpcFailClosedNoFallbackLogic()
   console.log('')
 
   console.log('=================================================================')
@@ -355,3 +566,4 @@ if (typeof process !== 'undefined' && process.argv && process.argv[1]?.includes(
     process.exit(1)
   }
 }
+

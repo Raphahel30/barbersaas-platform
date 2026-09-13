@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
 
-export default function MasterDashboardRedirect() {
+export default async function MasterDashboardRedirect() {
   redirect('/master-admin')
 }

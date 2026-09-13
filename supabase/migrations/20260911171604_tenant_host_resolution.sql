@@ -1,5 +1,3 @@
-begin;
-
 create or replace function public.resolve_tenant_by_host(
   requested_host text,
   requested_slug text default null
@@ -25,5 +23,3 @@ $$;
 
 revoke all on function public.resolve_tenant_by_host(text, text) from public;
 grant execute on function public.resolve_tenant_by_host(text, text) to anon, authenticated, service_role;
-
-commit;

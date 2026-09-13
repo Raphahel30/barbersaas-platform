@@ -21,9 +21,15 @@ export default async function MasterLayout({
   children: React.ReactNode
 }) {
   // Trava estrita de segurança do Master Admin
+  let isAuthorized = false
   try {
     await requireSuperAdmin()
+    isAuthorized = true
   } catch {
+    isAuthorized = false
+  }
+
+  if (!isAuthorized) {
     redirect('/login')
   }
 

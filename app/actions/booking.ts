@@ -1,5 +1,6 @@
 'use server'
 
+import crypto from 'crypto'
 import { getAvailableSlots } from '@/lib/booking/slots'
 import { dispatchAppointmentNotifications, type WhatsAppDispatchResult } from '@/lib/services/whatsapp'
 import { requireCurrentTenant } from '@/lib/tenant'
@@ -31,12 +32,16 @@ export type AppointmentHold = {
   appointmentId: string
   startsAt: string
   endsAt: string
-  expiresAt: string
+  expiresAt: string | null
   remainingSeconds: number
   totalAmount: number
   reservationFee: number
+  status: 'hold' | 'confirmed'
+  requiresPayment: boolean
   vipDiscountAmount: number
   fidelityDiscountAmount: number
+  isMonthlySubscriber: boolean
+  trackingToken: string
 }
 
 export type ConfirmPaymentInput = {
@@ -274,7 +279,11 @@ export async function createAppointmentHold(
     }
   }
 
-  // Execução via Função Transacional Atômica no Supabase
+  // Geração de token de rastreamento criptograficamente seguro para autorização de polling IDOR-safe
+  const trackingToken = crypto.randomBytes(24).toString('hex')
+  const trackingTokenHash = crypto.createHash('sha256').update(trackingToken).digest('hex')
+
+  // Execução via Função Transacional Atômica no Supabase (com trava pessimista de mensalista e sinal zero)
   const rpcResult = await (admin as any).rpc('create_appointment_hold_atomic', {
     p_tenant_id: input.tenantId,
     p_barber_id: input.barberId,
@@ -286,74 +295,40 @@ export async function createAppointmentHold(
     p_total_amount: fromCents(payableCents),
     p_reservation_fee: fromCents(reservationFeeCents),
     p_notes: input.notes?.trim() || null,
+    p_tracking_token_hash: trackingTokenHash,
   })
 
-  if (!rpcResult.error && rpcResult.data && (rpcResult.data as any).success) {
-    const resData = rpcResult.data as any
-    const isMonthly = Boolean(resData.is_monthly)
-    return {
-      success: true,
-      data: {
-        appointmentId: resData.appointment_id,
-        startsAt: selectedSlot.startsAt,
-        endsAt: selectedSlot.endsAt,
-        expiresAt: resData.hold_expires_at || new Date(Date.now() + 5 * 60_000).toISOString(),
-        remainingSeconds: 300,
-        totalAmount: isMonthly ? 0 : fromCents(payableCents),
-        reservationFee: isMonthly ? 0 : fromCents(reservationFeeCents),
-        vipDiscountAmount: fromCents(vipDiscountCents),
-        fidelityDiscountAmount: fromCents(fidelityDiscountCents),
-        isMonthlySubscriber: isMonthly,
-      } as any,
-    }
+  if (rpcResult.error || !rpcResult.data || !(rpcResult.data as any).success) {
+    const errorMsg =
+      rpcResult.data?.error ||
+      rpcResult.error?.message ||
+      'Horário indisponível ou falha ao processar reserva.'
+    return { success: false, message: errorMsg }
   }
 
-  const holdExpiresAt = new Date(Date.now() + 5 * 60_000)
-  const appointmentResult = await admin.from('appointments').insert({
-    tenant_id: input.tenantId,
-    barber_id: input.barberId,
-    client_id: clientId,
-    status: 'hold',
-    starts_at: selectedSlot.startsAt,
-    ends_at: selectedSlot.endsAt,
-    hold_expires_at: holdExpiresAt.toISOString(),
-    guest_name: clientId ? null : guestName,
-    guest_phone: clientId ? null : guestPhone,
-    notes: input.notes?.trim() || null,
-    total_amount: fromCents(payableCents),
-    reservation_fee: fromCents(reservationFeeCents),
-    vip_discount_amount: fromCents(vipDiscountCents),
-    fidelity_discount_amount: fromCents(fidelityDiscountCents),
-    fidelity_card_id: fidelityCardId,
-  }).select('id').single()
-  if (appointmentResult.error) {
-    return { success: false, message: appointmentResult.error.code === '23P01' ? 'Este horário acabou de ser reservado.' : 'Não foi possível criar a reserva.' }
-  }
+  const resData = rpcResult.data as any
+  const isMonthly = Boolean(resData.is_monthly)
+  const finalStatus: 'hold' | 'confirmed' = resData.status === 'confirmed' ? 'confirmed' : 'hold'
+  const requiresPayment = Boolean(resData.requires_payment)
 
-  const serviceSnapshots = servicesResult.data.map((service) => ({
-    appointment_id: appointmentResult.data.id,
-    service_id: service.id,
-    service_name: service.name,
-    duration_minutes: service.duration_minutes + service.cleanup_minutes,
-    unit_price: service.price,
-  }))
-  const snapshotResult = await admin.from('appointment_services').insert(serviceSnapshots)
-  if (snapshotResult.error) {
-    await admin.from('appointments').delete().eq('id', appointmentResult.data.id)
-    return { success: false, message: 'Não foi possível registrar os serviços da reserva.' }
+  return {
+    success: true,
+    data: {
+      appointmentId: resData.appointment_id,
+      startsAt: selectedSlot.startsAt,
+      endsAt: selectedSlot.endsAt,
+      expiresAt: resData.hold_expires_at || null,
+      remainingSeconds: resData.hold_expires_at ? 300 : 0,
+      totalAmount: isMonthly ? 0 : fromCents(payableCents),
+      reservationFee: requiresPayment ? fromCents(reservationFeeCents) : 0,
+      status: finalStatus,
+      requiresPayment,
+      vipDiscountAmount: fromCents(vipDiscountCents),
+      fidelityDiscountAmount: fromCents(fidelityDiscountCents),
+      isMonthlySubscriber: isMonthly,
+      trackingToken,
+    },
   }
-
-  return { success: true, data: {
-    appointmentId: appointmentResult.data.id,
-    startsAt: selectedSlot.startsAt,
-    endsAt: selectedSlot.endsAt,
-    expiresAt: holdExpiresAt.toISOString(),
-    remainingSeconds: 300,
-    totalAmount: fromCents(payableCents),
-    reservationFee: fromCents(reservationFeeCents),
-    vipDiscountAmount: fromCents(vipDiscountCents),
-    fidelityDiscountAmount: fromCents(fidelityDiscountCents),
-  } }
 }
 
 export async function confirmAppointmentPayment(
@@ -546,7 +521,8 @@ export async function fetchAvailableSlots(
  * Consulta em tempo real o status de pagamento e confirmação do agendamento no Supabase/Gateway.
  */
 export async function checkAppointmentPaymentStatus(
-  appointmentId: string
+  appointmentId: string,
+  trackingToken?: string
 ): Promise<{
   success: boolean
   status: string
@@ -565,10 +541,11 @@ export async function checkAppointmentPaymentStatus(
   }
 
   try {
+    const identity = await getIdentity()
     const admin = createAdminClient()
     const { data: apt, error } = await admin
       .from('appointments')
-      .select('id, status, payment_status, hold_expires_at, total_amount, reservation_fee, reservation_fee_paid')
+      .select('id, tenant_id, status, payment_status, hold_expires_at, total_amount, reservation_fee, reservation_fee_paid, tracking_token_hash')
       .eq('id', appointmentId)
       .single()
 
@@ -579,6 +556,46 @@ export async function checkAppointmentPaymentStatus(
         isConfirmed: false,
         paymentStatus: 'not_found',
         message: 'Agendamento não localizado.',
+      }
+    }
+
+    // Autorização:
+    // 1. Staff autenticado do mesmo tenant possui acesso autorizado
+    const isStaffOfTenant =
+      Boolean(identity.tenantId) &&
+      identity.tenantId === apt.tenant_id &&
+      ['owner', 'barber', 'receptionist'].includes(identity.role ?? '')
+
+    // 2. Cliente anônimo ou usuário comum deve fornecer trackingToken válido
+    if (!isStaffOfTenant) {
+      if (!trackingToken || typeof trackingToken !== 'string' || trackingToken.length < 16) {
+        return {
+          success: false,
+          status: 'unauthorized',
+          isConfirmed: false,
+          paymentStatus: 'unauthorized',
+          message: 'Token de acompanhamento obrigatório para consulta.',
+        }
+      }
+
+      const storedHash = (apt as any).tracking_token_hash
+      if (storedHash) {
+        const providedHash = crypto.createHash('sha256').update(trackingToken).digest('hex')
+        const hashBuffer = Buffer.from(providedHash, 'utf8')
+        const storedBuffer = Buffer.from(storedHash, 'utf8')
+
+        if (
+          hashBuffer.length !== storedBuffer.length ||
+          !crypto.timingSafeEqual(hashBuffer, storedBuffer)
+        ) {
+          return {
+            success: false,
+            status: 'unauthorized',
+            isConfirmed: false,
+            paymentStatus: 'unauthorized',
+            message: 'Token de acompanhamento inválido.',
+          }
+        }
       }
     }
 
@@ -607,7 +624,7 @@ export async function checkAppointmentPaymentStatus(
       status: 'error',
       isConfirmed: false,
       paymentStatus: 'error',
-      message: err?.message,
+      message: 'Erro ao verificar pagamento.',
     }
   }
 }
