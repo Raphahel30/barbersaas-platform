@@ -1,3 +1,5 @@
+import { createAdminClient } from '@/utils/supabase/admin'
+
 export interface RateLimitResult {
   success: boolean
   count: number
@@ -101,41 +103,40 @@ export async function checkDistributedRateLimit(
   maxRequests: number,
   windowMs: number,
 ): Promise<RateLimitResult> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const apiKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const secret = process.env.RATE_LIMIT_SECRET ?? process.env.GATEWAY_OAUTH_STATE_SECRET
 
-  if (!url || !apiKey || !(process.env.RATE_LIMIT_SECRET ?? process.env.GATEWAY_OAUTH_STATE_SECRET)) {
+  if (!serviceRoleKey || !secret) {
     return checkRateLimit(key, maxRequests, windowMs)
   }
 
   try {
-    const response = await fetch(`${url}/rest/v1/rpc/consume_rate_limit`, {
-      method: 'POST',
-      headers: {
-        apikey: apiKey,
-        authorization: `Bearer ${apiKey}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        p_key_hash: await hashRateLimitKey(key),
-        p_max_requests: maxRequests,
-        p_window_seconds: Math.ceil(windowMs / 1000),
-      }),
-      cache: 'no-store',
+    const admin = createAdminClient()
+    const keyHash = await hashRateLimitKey(key)
+    const windowSeconds = Math.ceil(windowMs / 1000)
+
+    const { data, error } = await (admin.rpc as any)('consume_rate_limit', {
+      p_key_hash: keyHash,
+      p_max_requests: maxRequests,
+      p_window_seconds: windowSeconds,
     })
 
-    if (!response.ok) throw new Error(`Rate-limit RPC failed with ${response.status}`)
-    const result = await response.json() as {
+    if (error || !data) {
+      throw new Error(error?.message || 'Rate-limit RPC failed')
+    }
+
+    const result = data as {
       success: boolean
       count: number
       remaining: number
       reset_seconds: number
     }
+
     return {
-      success: result.success,
-      count: result.count,
-      remaining: result.remaining,
-      resetTimeMs: result.reset_seconds * 1000,
+      success: Boolean(result.success),
+      count: Number(result.count || 0),
+      remaining: Number(result.remaining || 0),
+      resetTimeMs: Number(result.reset_seconds || 0) * 1000,
     }
   } catch {
     return checkRateLimit(key, maxRequests, windowMs)
