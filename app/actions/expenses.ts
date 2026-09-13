@@ -74,18 +74,9 @@ export async function listExpensesAction(
       .order('due_date', { ascending: false })
 
     if (error || !expenses) {
-      // Mock para homologação/preview
       return {
         success: true,
-        data: [
-          { id: 'exp-1', tenantId, category: 'fixed', description: 'Aluguel do Ponto Comercial', amount: 3200, dueDate: '2026-09-10', paidAt: '2026-09-08', isRecurring: true },
-          { id: 'exp-2', tenantId, category: 'fixed', description: 'Energia Elétrica (Ar-Condicionado)', amount: 680, dueDate: '2026-09-15', paidAt: null, isRecurring: true },
-          { id: 'exp-3', tenantId, category: 'fixed', description: 'Internet Fibra 600MB', amount: 140, dueDate: '2026-09-20', paidAt: null, isRecurring: true },
-          { id: 'exp-4', tenantId, category: 'fixed', description: 'Assinatura BarberSaaS', amount: 149, dueDate: '2026-09-05', paidAt: '2026-09-05', isRecurring: true },
-          { id: 'exp-5', tenantId, category: 'variable', description: 'Caixa de Lâminas Descartáveis Derby', amount: 85, dueDate: '2026-09-03', paidAt: '2026-09-03', isRecurring: false },
-          { id: 'exp-6', tenantId, category: 'variable', description: 'Golas Higiênicas e Papel Toalha', amount: 120, dueDate: '2026-09-04', paidAt: '2026-09-04', isRecurring: false },
-          { id: 'exp-7', tenantId, category: 'variable', description: 'Café Espresso e Bebidas Cortesia', amount: 260, dueDate: '2026-09-08', paidAt: '2026-09-08', isRecurring: true },
-        ],
+        data: [],
       }
     }
 
@@ -218,25 +209,15 @@ export async function getDREStatementAction(
       .select('category, description, amount')
       .eq('tenant_id', tenantId)
 
-    const servicesRevenue = appointments?.reduce((acc, a) => acc + Number(a.total_amount || 0), 0) || 16840
-    const productsRevenue = productSales?.reduce((acc, p) => acc + Number(p.total_amount || 0), 0) || 1420
+    const servicesRevenue = appointments?.reduce((acc, a) => acc + Number(a.total_amount || 0), 0) || 0
+    const productsRevenue = productSales?.reduce((acc, p) => acc + Number(p.total_amount || 0), 0) || 0
     const grossRevenue = servicesRevenue + productsRevenue
 
-    const commissionExpense = commissions?.reduce((acc, c) => acc + Number(c.commission_amount || 0), 0) || Math.round(servicesRevenue * 0.5)
-    const productCosts = Math.round(productsRevenue * 0.45) // Custo médio de aquisição dos produtos (45%)
+    const commissionExpense = commissions?.reduce((acc, c) => acc + Number(c.commission_amount || 0), 0) || 0
+    const productCosts = Math.round(productsRevenue * 0.45) // Custo médio estimado de aquisição dos produtos (45%)
 
-    const fixedExpenseList = expenses?.filter((e) => e.category === 'fixed') || [
-      { description: 'Aluguel do Ponto Comercial', amount: 3200 },
-      { description: 'Energia Elétrica (Ar-Condicionado)', amount: 680 },
-      { description: 'Internet Fibra', amount: 140 },
-      { description: 'Assinatura BarberSaaS', amount: 149 },
-    ]
-
-    const variableExpenseList = expenses?.filter((e) => e.category === 'variable') || [
-      { description: 'Lâminas Descartáveis', amount: 85 },
-      { description: 'Golas Higiênicas e Papel', amount: 120 },
-      { description: 'Café e Bebidas Cortesia', amount: 260 },
-    ]
+    const fixedExpenseList = expenses?.filter((e) => e.category === 'fixed').map((e) => ({ description: e.description, amount: e.amount })) || []
+    const variableExpenseList = expenses?.filter((e) => e.category === 'variable').map((e) => ({ description: e.description, amount: e.amount })) || []
 
     const fixedExpenses = fixedExpenseList.reduce((acc, curr) => acc + curr.amount, 0)
     const variableExpenses = variableExpenseList.reduce((acc, curr) => acc + curr.amount, 0)
@@ -246,19 +227,19 @@ export async function getDREStatementAction(
     const netProfit = grossRevenue - commissionExpense - productCosts - totalOperationalExpenses
     const netMarginPercent = grossRevenue > 0 ? Number(((netProfit / grossRevenue) * 100).toFixed(1)) : 0
 
-    const totalCuts = appointments?.length || 270
-    const averageTicket = totalCuts > 0 ? Number((servicesRevenue / totalCuts).toFixed(2)) : 62.37
+    const totalCuts = appointments?.length || 0
+    const averageTicket = totalCuts > 0 ? Number((servicesRevenue / totalCuts).toFixed(2)) : 0
 
     // Ponto de Equilíbrio (Break-Even):
     // Margem de Contribuição por corte = Ticket Médio - (Comissão Média + Insumos Variáveis Médios por corte)
-    const variableCostPerCut = (commissionExpense + variableExpenses) / Math.max(1, totalCuts)
-    const contributionMarginPerCut = Math.max(10, averageTicket - variableCostPerCut)
-    const breakEvenCuts = Math.ceil(fixedExpenses / contributionMarginPerCut)
+    const variableCostPerCut = totalCuts > 0 ? (commissionExpense + variableExpenses) / totalCuts : 0
+    const contributionMarginPerCut = averageTicket > variableCostPerCut ? averageTicket - variableCostPerCut : 0
+    const breakEvenCuts = contributionMarginPerCut > 0 ? Math.ceil(fixedExpenses / contributionMarginPerCut) : 0
 
     return {
       success: true,
       data: {
-        periodLabel: 'Mês Vigente (Setembro)',
+        periodLabel: 'Mês Vigente',
         grossRevenue,
         servicesRevenue,
         productsRevenue,

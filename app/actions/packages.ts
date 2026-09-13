@@ -81,35 +81,9 @@ export async function listTenantPackages(
       .eq('is_active', true)
 
     if (error || !packages) {
-      // Retorna combos mock de alto padrão caso a tabela ainda não tenha registros
       return {
         success: true,
-        data: [
-          {
-            id: 'pkg-1',
-            tenantId,
-            name: 'Pacote Mensal 4 Cortes Degradê',
-            description: '4 cortes no mês com 20% de desconto e pomada matte grátis',
-            price: 180,
-            totalCredits: 4,
-            serviceId: 'srv-corte',
-            serviceName: 'Corte Degradê Navalhado',
-            validityDays: 45,
-            isActive: true,
-          },
-          {
-            id: 'pkg-2',
-            tenantId,
-            name: 'Combo Quinzenal Cabelo + Barba (2 Sessões)',
-            description: '2 experiências completas com direito a bebida e alinhamento',
-            price: 150,
-            totalCredits: 2,
-            serviceId: 'srv-combo',
-            serviceName: 'Combo Cabelo + Barba VIP',
-            validityDays: 60,
-            isActive: true,
-          },
-        ],
+        data: [],
       }
     }
 

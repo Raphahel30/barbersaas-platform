@@ -34,6 +34,8 @@ type SlotItem = {
   startsAt: string
   endsAt: string
   localTime?: string
+  barberId?: string
+  barberName?: string
   isPromotional?: boolean
   promotionalBadge?: string | null
   discountAmount?: number
@@ -130,7 +132,7 @@ export default function BookingFunnelPage() {
       setSelectedSlot(null)
 
       try {
-        const targetBarber = selectedBarberId === 'any' ? barbers[0]?.id : selectedBarberId
+        const targetBarber = selectedBarberId // 'any' ou id específico
         if (!targetBarber) return
 
         const slots = await fetchAvailableSlots(
@@ -147,7 +149,7 @@ export default function BookingFunnelPage() {
       }
     }
     loadSlots()
-  }, [step, tenantId, selectedBarberId, selectedDate, selectedServiceIds, barbers])
+  }, [step, tenantId, selectedBarberId, selectedDate, selectedServiceIds])
 
   // 3. Cronômetro regressivo de 5 minutos do Hold Pix (Passo 4)
   useEffect(() => {
@@ -268,9 +270,10 @@ export default function BookingFunnelPage() {
 
     setIsProcessing(true)
 
-    const effectiveBarberId = selectedBarberId === 'any' ? barbers[0]?.id : selectedBarberId
+    const effectiveBarberId =
+      selectedSlot.barberId || (selectedBarberId === 'any' ? barbers[0]?.id : selectedBarberId)
     if (!effectiveBarberId) {
-      setErrorMessage('Profissional indisponível.')
+      setErrorMessage('Nenhum profissional disponível para este horário.')
       setIsProcessing(false)
       return
     }
@@ -311,15 +314,22 @@ export default function BookingFunnelPage() {
         return
       }
 
-      // Se há sinal de reserva com Pix, gera a cobrança
+      // Se há sinal de reserva com Pix, gera a cobrança com bloqueio em caso de falha
       const pixRes = await generateReservationFeePix(holdRes.data.appointmentId)
-      if (pixRes.success && pixRes.data) {
-        setPixData({
-          qrCode: pixRes.data.qrCode,
-          qrCodeImage: pixRes.data.qrCodeImage,
-          checkoutUrl: pixRes.data.checkoutUrl,
-        })
+      if (!pixRes.success || !pixRes.data?.qrCode) {
+        setErrorMessage(
+          pixRes.message ||
+            'Não foi possível gerar a chave Pix do sinal no momento. Por favor, tente novamente.',
+        )
+        setIsProcessing(false)
+        return
       }
+
+      setPixData({
+        qrCode: pixRes.data.qrCode,
+        qrCodeImage: pixRes.data.qrCodeImage,
+        checkoutUrl: pixRes.data.checkoutUrl,
+      })
 
       setStep(4)
     } catch (err) {

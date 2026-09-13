@@ -32,40 +32,7 @@ export function BarberGoalsWidget({ barberId, tenantId }: BarberGoalsWidgetProps
       if (res.success && res.data) {
         setData(res.data)
       } else {
-        // Mock demonstrativo rico para prévia
-        setData({
-          barberId: 'barber-demo',
-          barberName: 'Marcos Silva',
-          currentMonthName: 'Setembro',
-          completedCuts: 67,
-          currentGrossRevenue: 3820,
-          currentCommissionPercent: 50,
-          currentCommissionEarned: 1910,
-          currentTier: {
-            id: 'tier-bronze',
-            name: 'Faixa Base',
-            minCuts: 0,
-            maxCuts: 70,
-            commissionPercent: 50,
-            badge: '🥉 Bronze',
-          },
-          nextTier: {
-            id: 'tier-silver',
-            name: 'Faixa Performance',
-            minCuts: 71,
-            maxCuts: 120,
-            commissionPercent: 55,
-            badge: '🥈 Prata',
-          },
-          cutsRemainingForNextTier: 4,
-          progressPercentToNextTier: 95,
-          projectedExtraEarningsNextTier: 191.0,
-          allTiers: [
-            { id: 'tier-bronze', name: 'Faixa Base', minCuts: 0, maxCuts: 70, commissionPercent: 50, badge: '🥉 Bronze' },
-            { id: 'tier-silver', name: 'Faixa Performance', minCuts: 71, maxCuts: 120, commissionPercent: 55, badge: '🥈 Prata' },
-            { id: 'tier-gold', name: 'Faixa Master', minCuts: 121, maxCuts: null, commissionPercent: 60, badge: '🥇 Ouro VIP' },
-          ],
-        })
+        setData(null)
       }
       setLoading(false)
     }
@@ -80,7 +47,19 @@ export function BarberGoalsWidget({ barberId, tenantId }: BarberGoalsWidgetProps
     )
   }
 
-  if (!data) return null
+  if (!data) {
+    return (
+      <div className="p-8 bg-neutral-900/60 border border-neutral-800 rounded-3xl text-center space-y-2">
+        <div className="w-10 h-10 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto text-lg font-bold">
+          <Target className="w-5 h-5" />
+        </div>
+        <h4 className="text-sm font-bold text-white">Metas e Comissões do Mês</h4>
+        <p className="text-xs text-neutral-400 max-w-sm mx-auto">
+          Nenhuma meta ou comissão progressiva cadastrada para este mês.
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="bg-gradient-to-br from-neutral-900 via-neutral-900 to-neutral-950 border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-6">

@@ -169,6 +169,40 @@ export async function createAppointmentHold(
   let fidelityDiscountCents = 0
   let fidelityCardId: string | null = null
 
+  // 2. Validação estrita de Desconto de Aniversário no Backend (Verifica data de nascimento em clients)
+  let isBirthdayBonusApplied = false
+  const targetPhone = guestPhone ? guestPhone.replace(/\D/g, '') : null
+  let clientRecord: { id: string; birth_date?: string | null; name?: string } | null = null
+
+  if (clientId) {
+    const { data: c } = await admin
+      .from('clients')
+      .select('id, birth_date, name')
+      .eq('id', clientId)
+      .eq('tenant_id', input.tenantId)
+      .maybeSingle()
+    clientRecord = c as any
+  } else if (targetPhone && targetPhone.length >= 8) {
+    const { data: c } = await admin
+      .from('clients')
+      .select('id, birth_date, name')
+      .eq('tenant_id', input.tenantId)
+      .ilike('phone', `%${targetPhone.slice(-8)}%`)
+      .maybeSingle()
+    clientRecord = c as any
+  }
+
+  if (clientRecord?.birth_date) {
+    const bdayParts = clientRecord.birth_date.split('-')
+    const bdayMonth = bdayParts.length >= 2 ? parseInt(bdayParts[1], 10) - 1 : null
+    const bookingMonth = requestedStart.getUTCMonth()
+    if (bdayMonth === bookingMonth) {
+      isBirthdayBonusApplied = true
+      const bdayDiscountCents = Math.round(payableCents * 0.2) // 20% OFF Aniversariante
+      payableCents = Math.max(0, payableCents - bdayDiscountCents)
+    }
+  }
+
   if (clientId) {
     const nowIso = new Date().toISOString()
     const overdueCheck = await admin
@@ -456,11 +490,52 @@ export async function fetchAvailableSlots(
   date: string,
   serviceIds: string[],
 ) {
-  if (!UUID_PATTERN.test(tenantId) || !UUID_PATTERN.test(barberId) || !Array.isArray(serviceIds) || serviceIds.length === 0) {
+  if (
+    !UUID_PATTERN.test(tenantId) ||
+    (!UUID_PATTERN.test(barberId) && barberId !== 'any') ||
+    !Array.isArray(serviceIds) ||
+    serviceIds.length === 0
+  ) {
     return []
   }
   try {
-    return await getAvailableSlots(tenantId, barberId, date, serviceIds)
+    if (barberId === 'any') {
+      const admin = createAdminClient()
+      const { data: activeBarbers } = await admin
+        .from('profiles')
+        .select('id, full_name')
+        .eq('tenant_id', tenantId)
+        .in('role', ['barber', 'owner'])
+        .eq('is_active', true)
+
+      if (!activeBarbers || activeBarbers.length === 0) return []
+
+      const slotMap = new Map<string, any>()
+
+      for (const b of activeBarbers) {
+        try {
+          const barberSlots = await getAvailableSlots(tenantId, b.id, date, serviceIds)
+          for (const s of barberSlots) {
+            if (!slotMap.has(s.startsAt)) {
+              slotMap.set(s.startsAt, {
+                ...s,
+                barberId: b.id,
+                barberName: b.full_name,
+              })
+            }
+          }
+        } catch {
+          // ignora dias de folga individuais do barbeiro
+        }
+      }
+
+      return Array.from(slotMap.values()).sort(
+        (a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt),
+      )
+    }
+
+    const slots = await getAvailableSlots(tenantId, barberId, date, serviceIds)
+    return slots.map((s) => ({ ...s, barberId }))
   } catch (error) {
     console.error('Falha ao calcular slots disponíveis:', error)
     return []

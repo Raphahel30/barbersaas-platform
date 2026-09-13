@@ -136,78 +136,9 @@ export async function getCRMClientList(tenantSlugOrId: string): Promise<CRMClien
     }
   })
 
-  // Se não houver dados, fornecer base demonstrativa rica
+  // Se não houver clientes cadastrados ou atendidos, retornar lista vazia
   if (clientMap.size === 0) {
-    const demoClients = [
-      {
-        name: 'Guilherme Siqueira',
-        phone: '11987654321',
-        totalVisits: 8,
-        totalSpent: 480,
-        lastVisitAt: new Date(now - 12 * 24 * 60 * 60 * 1000).toISOString(),
-        notes: 'Gosta de degradê navalhado baixo e barba desenhada com navalha.',
-        isVip: true,
-        planName: 'Plano Navalio VIP (4 Cortes)',
-      },
-      {
-        name: 'Mateus Oliveira',
-        phone: '11971112233',
-        totalVisits: 14,
-        totalSpent: 840,
-        lastVisitAt: new Date(now - 38 * 24 * 60 * 60 * 1000).toISOString(), // > 30 dias (Alerta Sumido!)
-        notes: 'Cliente antigo. Costuma cortar aos sábados pela manhã.',
-        isVip: false,
-        planName: null,
-      },
-      {
-        name: 'Rodrigo Guimarães',
-        phone: '11993334455',
-        totalVisits: 4,
-        totalSpent: 260,
-        lastVisitAt: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
-        notes: 'Usa pomada efeito matte.',
-        isVip: true,
-        planName: 'Clube Cabelo & Barba',
-      },
-      {
-        name: 'Felipe Albuquerque',
-        phone: '11999993333',
-        totalVisits: 6,
-        totalSpent: 390,
-        lastVisitAt: new Date(now - 45 * 24 * 60 * 60 * 1000).toISOString(), // > 30 dias
-        notes: 'Corte tesoura clássico.',
-        isVip: false,
-        planName: null,
-      },
-    ]
-
-    return demoClients.map((c, idx) => {
-      const isInactive = c.lastVisitAt ? now - new Date(c.lastVisitAt).getTime() > thirtyDaysMs : false
-      const avgTicket = c.totalVisits > 0 ? Math.round(c.totalSpent / c.totalVisits) : 0
-      const msg = isInactive
-        ? `Olá ${c.name}, tudo bem? Sentimos sua falta aqui na barbearia! Que tal renovar seu corte esta semana? Agende seu horário com a gente!`
-        : `Olá ${c.name}, passando para confirmar seu próximo horário ou saber como ficou seu corte!`
-
-      return {
-        id: `crm-demo-${idx + 1}`,
-        name: c.name,
-        phone: c.phone,
-        normalizedPhone: c.phone,
-        email: `${c.name.toLowerCase().replace(/\s+/g, '.')}@gmail.com`,
-        totalVisits: c.totalVisits,
-        totalSpent: c.totalSpent,
-        averageTicket: avgTicket,
-        lastVisitAt: c.lastVisitAt,
-        lastVisit: c.lastVisitAt || new Date().toISOString(),
-        isInactiveOver30Days: isInactive,
-        isInactive,
-        isVipSubscriber: c.isVip,
-        planName: c.planName,
-        fidelityPoints: c.totalVisits,
-        notes: c.notes,
-        whatsappUrl: `https://wa.me/55${c.phone}?text=${encodeURIComponent(msg)}`,
-      }
-    })
+    return []
   }
 
   const result: CRMClient[] = []

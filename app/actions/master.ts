@@ -1,8 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
 import { requireSuperAdmin } from '@/lib/auth/guards'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { recordAuditLog } from '@/lib/logs/audit'
 
 export type MasterTenant = {
   id: string
@@ -68,12 +70,12 @@ export async function getMasterAdminData(): Promise<{
     const planName = planInfo?.name || 'Plano Personalizado'
     const monthlyPrice = Number(planInfo?.monthly_price || 0)
 
+    // MRR calculado exclusivamente a partir de assinaturas ativas pagantes (excluindo trial)
     if (t.status === 'active') {
       activeTenants += 1
       mrr += monthlyPrice
     } else if (t.status === 'trial') {
       trialTenants += 1
-      mrr += monthlyPrice * 0.5 // projeção ponderada
     } else if (t.status === 'suspended') {
       suspendedTenants += 1
     }
@@ -102,8 +104,27 @@ export async function getMasterAdminData(): Promise<{
     .filter((a) => new Date(a.created_at) >= currentMonthStart)
     .reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0)
 
-  // Saldo Asaas (calculado a partir de taxas da plataforma de 1.5% + repasses)
-  const asaasBalance = Math.max(1485.50, mrr * 0.85 + monthlyGmv * 0.015)
+  // Saldo real Asaas (consulta direta à API GET /v3/finance/balance)
+  let asaasBalance = 0
+  try {
+    const apiKey = process.env.ASAAS_API_KEY || process.env.ASAAS_ACCESS_TOKEN
+    const asaasUrl = process.env.ASAAS_API_URL || 'https://api.asaas.com/v3'
+    if (apiKey) {
+      const res = await fetch(`${asaasUrl}/finance/balance`, {
+        headers: {
+          access_token: apiKey,
+          'Content-Type': 'application/json',
+        },
+        next: { revalidate: 60 },
+      })
+      if (res.ok) {
+        const balanceData = await res.json()
+        asaasBalance = Number(balanceData.totalBalance || balanceData.balance || 0)
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao consultar saldo real Asaas:', err)
+  }
 
   return {
     metrics: {
@@ -167,4 +188,56 @@ export async function updateTenantPlan(
 
   revalidatePath('/master-admin')
   return { success: true, message: 'Plano da barbearia atualizado com sucesso.' }
+}
+
+/**
+ * Sessão de impersonação segura de tenant com registro em audit_logs e cookie auditado.
+ */
+export async function impersonateTenantAction(
+  tenantId: string
+): Promise<{ success: boolean; redirectUrl?: string; message?: string }> {
+  const superAdmin = await requireSuperAdmin()
+  const admin = createAdminClient()
+
+  const { data: tenant, error } = await admin
+    .from('tenants')
+    .select('id, name, slug')
+    .eq('id', tenantId)
+    .single()
+
+  if (error || !tenant) {
+    return { success: false, message: 'Barbearia não encontrada.' }
+  }
+
+  // 1. Registro em audit_logs
+  await recordAuditLog({
+    tenantId: tenant.id,
+    actorId: superAdmin.userId,
+    actorEmail: superAdmin.email,
+    actorRole: 'super_admin',
+    action: 'impersonate_tenant',
+    category: 'security',
+    targetId: tenant.id,
+    details: {
+      impersonated_tenant_slug: tenant.slug,
+      impersonated_tenant_name: tenant.name,
+      timestamp: new Date().toISOString(),
+    },
+  })
+
+  // 2. Cookie de impersonate auditado
+  const cookieStore = await cookies()
+  cookieStore.set('impersonate_tenant_id', tenant.id, {
+    path: '/',
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 2, // 2 horas
+  })
+
+  return {
+    success: true,
+    redirectUrl: `/${tenant.slug}/admin`,
+    message: `Acessando painel de ${tenant.name} com perfil auditado de suporte.`,
+  }
 }

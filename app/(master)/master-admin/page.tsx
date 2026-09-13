@@ -24,6 +24,7 @@ import {
   getMasterAdminData,
   toggleTenantStatus,
   updateTenantPlan,
+  impersonateTenantAction,
   type MasterTenant,
   type MasterMetrics,
 } from '@/app/actions/master'
@@ -100,6 +101,22 @@ export default function MasterAdminPage() {
       }
     } catch {
       setFeedback({ type: 'error', message: 'Erro ao alterar plano da barbearia.' })
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  const handleImpersonate = async (tenant: MasterTenant) => {
+    setActionLoadingId(tenant.id)
+    try {
+      const res = await impersonateTenantAction(tenant.id)
+      if (res.success && res.redirectUrl) {
+        window.open(res.redirectUrl, '_blank')
+      } else {
+        setFeedback({ type: 'error', message: res.message || 'Falha ao iniciar impersonação.' })
+      }
+    } catch {
+      setFeedback({ type: 'error', message: 'Erro ao conectar à sessão da barbearia.' })
     } finally {
       setActionLoadingId(null)
     }
@@ -366,16 +383,17 @@ export default function MasterAdminPage() {
                         <td className="py-4 px-4 text-right">
                           <div className="flex items-center justify-end gap-2">
                             {/* Impersonate / Acessar como Barbeiro */}
-                            <Link
-                              href={`/${tenant.slug}/admin`}
-                              target="_blank"
+                            <button
+                              type="button"
+                              onClick={() => handleImpersonate(tenant)}
+                              disabled={isActionLoading}
                               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#201a13] hover:bg-[#2c241a] border border-[#d4af37]/30 text-[#d4af37] font-semibold text-[11px] transition-colors"
-                              title="Acessar o Painel Administrativo desta barbearia"
+                              title="Acessar o Painel Administrativo com auditoria"
                             >
                               <UserCheck className="w-3.5 h-3.5" />
                               <span>Acessar Loja</span>
                               <ExternalLink className="w-3 h-3" />
-                            </Link>
+                            </button>
 
                             {/* Alterar Plano */}
                             <button
