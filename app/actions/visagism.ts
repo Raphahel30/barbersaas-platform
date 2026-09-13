@@ -6,6 +6,7 @@ import {
   type FaceShape,
 } from '@/lib/ai/visagism'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { requireTenantStaff } from '@/lib/auth/guards'
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -58,6 +59,12 @@ export async function getClientVisagismHistory(
 }>>> {
   if (!UUID_PATTERN.test(tenantId) || !UUID_PATTERN.test(clientId)) {
     return { success: false, message: 'Identificadores inválidos.' }
+  }
+
+  try {
+    await requireTenantStaff(tenantId)
+  } catch (authErr: any) {
+    return { success: false, message: authErr?.message || 'Acesso negado.' }
   }
 
   const admin = createAdminClient()

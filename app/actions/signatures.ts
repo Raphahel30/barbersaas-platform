@@ -3,6 +3,7 @@
 import { headers } from 'next/headers'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { requireTenantStaff } from '@/lib/auth/guards'
 import {
   saveElectronicSignature,
   getStandardContractTemplate,
@@ -176,5 +177,29 @@ export async function verifySignatureAction(
     }
   } catch (err: any) {
     return { success: false, message: 'Erro na auditoria de integridade.', error: err?.message }
+  }
+}
+
+/**
+ * Lista as assinaturas eletrônicas emitidas para a barbearia (Exclusivo para equipe do tenant).
+ */
+export async function listTenantSignaturesAction(
+  tenantId: string
+): Promise<SignatureActionResult<any[]>> {
+  try {
+    await requireTenantStaff(tenantId)
+    const supabase = createAdminClient()
+
+    const { data, error } = await supabase
+      .from('electronic_signatures')
+      .select('id, document_type, title, signer_name, signer_document, signer_email, sha256_hash, created_at')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    return { success: true, data: data || [] }
+  } catch (err: any) {
+    return { success: false, message: 'Falha ao buscar histórico de assinaturas.', error: err?.message }
   }
 }

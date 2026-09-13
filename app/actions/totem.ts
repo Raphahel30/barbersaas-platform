@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/utils/supabase/admin'
 import { dispatchAppointmentNotifications } from '@/lib/services/whatsapp'
+import { requireTenantStaff } from '@/lib/auth/guards'
 import type { Database } from '@/types/database.types'
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -398,5 +399,33 @@ export async function getTodayQueueDisplayAction(
       nextUp: nextUp.slice(0, 5),
       waitingReception,
     },
+  }
+}
+
+/**
+ * Chama o próximo cliente da fila para a cadeira (Ação restrita à equipe do tenant).
+ */
+export async function callNextQueueAppointmentAction(
+  tenantId: string,
+  appointmentId: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    await requireTenantStaff(tenantId)
+    const admin = createAdminClient()
+
+    const { error } = await admin
+      .from('appointments')
+      .update({
+        status: 'confirmed',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', appointmentId)
+      .eq('tenant_id', tenantId)
+
+    if (error) throw error
+
+    return { success: true, message: 'Cliente chamado para atendimento com sucesso!' }
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Falha ao chamar cliente da fila.' }
   }
 }

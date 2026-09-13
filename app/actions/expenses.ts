@@ -2,7 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
-import { requireOwner } from '@/lib/auth/guards'
+import { requireTenantOwner, requireTenantStaff } from '@/lib/auth/guards'
 
 export interface ExpenseItem {
   id: string
@@ -61,13 +61,11 @@ export async function listExpensesAction(
       tenantId = profile?.tenant_id || undefined
     }
 
-    const admin = createAdminClient()
-    if (!tenantId) {
-      const { data: firstTenant } = await admin.from('tenants').select('id').limit(1).single()
-      tenantId = firstTenant?.id
-    }
-
     if (!tenantId) return { success: true, data: [] }
+
+    await requireTenantStaff(tenantId)
+
+    const admin = createAdminClient()
 
     const { data: expenses, error } = await admin
       .from('tenant_expenses')
@@ -114,7 +112,7 @@ export async function createExpenseAction(
   input: CreateExpenseInput,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireOwner(tenantId)
+    await requireTenantOwner(tenantId)
     const admin = createAdminClient()
 
     const { error } = await admin.from('tenant_expenses').insert({
@@ -142,7 +140,7 @@ export async function deleteExpenseAction(
   expenseId: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireOwner(tenantId)
+    await requireTenantOwner(tenantId)
     const admin = createAdminClient()
 
     const { error } = await admin
@@ -181,15 +179,13 @@ export async function getDREStatementAction(
       tenantId = profile?.tenant_id || undefined
     }
 
-    const admin = createAdminClient()
-    if (!tenantId) {
-      const { data: firstTenant } = await admin.from('tenants').select('id').limit(1).single()
-      tenantId = firstTenant?.id
-    }
-
     if (!tenantId) {
       return { success: false, error: 'Tenant não encontrado.' }
     }
+
+    await requireTenantOwner(tenantId)
+
+    const admin = createAdminClient()
 
     const now = new Date()
     const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()

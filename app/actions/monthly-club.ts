@@ -1,6 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/utils/supabase/admin'
+import { requireTenantStaff } from '@/lib/auth/guards'
 
 export type MonthlySubscriber = {
   id: string
@@ -53,96 +54,107 @@ async function resolveTenantId(slugOrId: string): Promise<string> {
 }
 
 export async function getMonthlySubscribers(tenantSlugOrId: string): Promise<MonthlySubscriber[]> {
-  const admin = createAdminClient()
-  const tenantId = await resolveTenantId(tenantSlugOrId)
+  try {
+    const tenantId = await resolveTenantId(tenantSlugOrId)
+    await requireTenantStaff(tenantId)
 
-  const { data, error } = await admin
-    .from('monthly_subscriptions')
-    .select('*')
-    .eq('tenant_id', tenantId)
-    .order('created_at', { ascending: false })
+    const admin = createAdminClient()
+    const { data, error } = await admin
+      .from('monthly_subscriptions')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false })
 
-  if (error) {
-    console.error('Erro ao buscar mensalistas:', error)
+    if (error) {
+      console.error('Erro ao buscar mensalistas:', error)
+      return []
+    }
+
+    return (data || []).map((s) => ({
+      id: s.id,
+      tenant_id: s.tenant_id,
+      client_name: s.client_name,
+      client_phone: s.client_phone,
+      plan_name: s.plan_name,
+      cuts_included: Number(s.cuts_included || 4),
+      cuts_remaining: Number(s.cuts_remaining ?? s.cuts_included ?? 4),
+      price_monthly: Number(s.price_monthly || 0),
+      status: (s.status as MonthlySubscriber['status']) || 'active',
+      cycle_start_date: s.cycle_start_date,
+      cycle_end_date: s.cycle_end_date,
+      created_at: s.created_at,
+    }))
+  } catch (err) {
+    console.error('getMonthlySubscribers guard error:', err)
     return []
   }
-
-  return (data || []).map((s) => ({
-    id: s.id,
-    tenant_id: s.tenant_id,
-    client_name: s.client_name,
-    client_phone: s.client_phone,
-    plan_name: s.plan_name,
-    cuts_included: Number(s.cuts_included || 4),
-    cuts_remaining: Number(s.cuts_remaining ?? s.cuts_included ?? 4),
-    price_monthly: Number(s.price_monthly || 0),
-    status: (s.status as MonthlySubscriber['status']) || 'active',
-    cycle_start_date: s.cycle_start_date,
-    cycle_end_date: s.cycle_end_date,
-    created_at: s.created_at,
-  }))
 }
 
 export async function createMonthlySubscriber(
   tenantSlugOrId: string,
   input: MonthlySubscriberInput,
 ): Promise<{ success: boolean; message: string; subscriber?: MonthlySubscriber }> {
-  const admin = createAdminClient()
-  const tenantId = await resolveTenantId(tenantSlugOrId)
-  const rawPhone = input.client_phone || input.clientPhone || ''
-  const rawName = input.client_name || input.clientName || 'Cliente VIP'
-  const rawPlan = input.plan_name || input.planName || 'Plano Mensal Tradicional'
-  const cutsIncluded = input.cuts_included ?? input.cutsIncluded ?? 4
-  const priceMonthly = input.price_monthly ?? input.priceMonthly ?? 0
-  const cleanPhone = normalizePhone(rawPhone)
+  try {
+    const tenantId = await resolveTenantId(tenantSlugOrId)
+    await requireTenantStaff(tenantId)
 
-  if (!cleanPhone || cleanPhone.length < 10) {
-    return { success: false, message: 'WhatsApp/Telefone inválido.' }
-  }
+    const admin = createAdminClient()
+    const rawPhone = input.client_phone || input.clientPhone || ''
+    const rawName = input.client_name || input.clientName || 'Cliente VIP'
+    const rawPlan = input.plan_name || input.planName || 'Plano Mensal Tradicional'
+    const cutsIncluded = input.cuts_included ?? input.cutsIncluded ?? 4
+    const priceMonthly = input.price_monthly ?? input.priceMonthly ?? 0
+    const cleanPhone = normalizePhone(rawPhone)
 
-  const startDate = new Date()
-  const endDate = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)
+    if (!cleanPhone || cleanPhone.length < 10) {
+      return { success: false, message: 'WhatsApp/Telefone inválido.' }
+    }
 
-  const { data, error } = await admin
-    .from('monthly_subscriptions')
-    .insert({
-      tenant_id: tenantId,
-      client_name: rawName.trim(),
-      client_phone: cleanPhone,
-      plan_name: rawPlan.trim(),
-      cuts_included: cutsIncluded,
-      cuts_remaining: cutsIncluded,
-      price_monthly: priceMonthly,
-      status: 'active',
-      cycle_start_date: startDate.toISOString().slice(0, 10),
-      cycle_end_date: endDate.toISOString().slice(0, 10),
-    })
-    .select('*')
-    .single()
+    const startDate = new Date()
+    const endDate = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)
 
+    const { data, error } = await admin
+      .from('monthly_subscriptions')
+      .insert({
+        tenant_id: tenantId,
+        client_name: rawName.trim(),
+        client_phone: cleanPhone,
+        plan_name: rawPlan.trim(),
+        cuts_included: cutsIncluded,
+        cuts_remaining: cutsIncluded,
+        price_monthly: priceMonthly,
+        status: 'active',
+        cycle_start_date: startDate.toISOString().slice(0, 10),
+        cycle_end_date: endDate.toISOString().slice(0, 10),
+      })
+      .select('*')
+      .single()
 
-  if (error) {
-    console.error('Erro ao criar mensalista:', error)
-    return { success: false, message: 'Não foi possível cadastrar o mensalista.' }
-  }
+    if (error) {
+      console.error('Erro ao criar mensalista:', error)
+      return { success: false, message: 'Não foi possível cadastrar o mensalista.' }
+    }
 
-  return {
-    success: true,
-    message: 'Assinante cadastrado com sucesso!',
-    subscriber: {
-      id: data.id,
-      tenant_id: data.tenant_id,
-      client_name: data.client_name,
-      client_phone: data.client_phone,
-      plan_name: data.plan_name,
-      cuts_included: Number(data.cuts_included),
-      cuts_remaining: Number(data.cuts_remaining),
-      price_monthly: Number(data.price_monthly),
-      status: data.status as MonthlySubscriber['status'],
-      cycle_start_date: data.cycle_start_date,
-      cycle_end_date: data.cycle_end_date,
-      created_at: data.created_at,
-    },
+    return {
+      success: true,
+      message: 'Assinante cadastrado com sucesso!',
+      subscriber: {
+        id: data.id,
+        tenant_id: data.tenant_id,
+        client_name: data.client_name,
+        client_phone: data.client_phone,
+        plan_name: data.plan_name,
+        cuts_included: Number(data.cuts_included),
+        cuts_remaining: Number(data.cuts_remaining),
+        price_monthly: Number(data.price_monthly),
+        status: data.status as MonthlySubscriber['status'],
+        cycle_start_date: data.cycle_start_date,
+        cycle_end_date: data.cycle_end_date,
+        created_at: data.created_at,
+      },
+    }
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Erro de autorização.' }
   }
 }
 
@@ -151,37 +163,43 @@ export async function renewMonthlyCycle(
   cutsIncluded?: number,
   _tenantSlug?: string,
 ): Promise<{ success: boolean; message: string }> {
-  const admin = createAdminClient()
+  try {
+    const admin = createAdminClient()
 
-  const { data: sub, error: fetchError } = await admin
-    .from('monthly_subscriptions')
-    .select('*')
-    .eq('id', subscriptionId)
-    .single()
+    const { data: sub, error: fetchError } = await admin
+      .from('monthly_subscriptions')
+      .select('*')
+      .eq('id', subscriptionId)
+      .single()
 
-  if (fetchError || !sub) {
-    return { success: false, message: 'Assinatura não encontrada.' }
+    if (fetchError || !sub) {
+      return { success: false, message: 'Assinatura não encontrada.' }
+    }
+
+    await requireTenantStaff(sub.tenant_id)
+
+    const startDate = new Date()
+    const endDate = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)
+    const cuts = cutsIncluded || sub.cuts_included || 4
+
+    const { error: updateError } = await admin
+      .from('monthly_subscriptions')
+      .update({
+        cuts_remaining: cuts,
+        status: 'active',
+        cycle_start_date: startDate.toISOString().slice(0, 10),
+        cycle_end_date: endDate.toISOString().slice(0, 10),
+      })
+      .eq('id', subscriptionId)
+
+    if (updateError) {
+      return { success: false, message: 'Falha ao renovar ciclo do assinante.' }
+    }
+
+    return { success: true, message: 'Ciclo mensal renovado com sucesso! Saldo de cortes restaurado.' }
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Erro de autorização.' }
   }
-
-  const startDate = new Date()
-  const endDate = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)
-  const cuts = cutsIncluded || sub.cuts_included || 4
-
-  const { error: updateError } = await admin
-    .from('monthly_subscriptions')
-    .update({
-      cuts_remaining: cuts,
-      status: 'active',
-      cycle_start_date: startDate.toISOString().slice(0, 10),
-      cycle_end_date: endDate.toISOString().slice(0, 10),
-    })
-    .eq('id', subscriptionId)
-
-  if (updateError) {
-    return { success: false, message: 'Falha ao renovar ciclo do assinante.' }
-  }
-
-  return { success: true, message: 'Ciclo mensal renovado com sucesso! Saldo de cortes restaurado.' }
 }
 
 export async function pauseOrCancelSubscription(
@@ -189,24 +207,36 @@ export async function pauseOrCancelSubscription(
   newStatus: 'active' | 'overdue' | 'cancelled',
   _tenantSlug?: string,
 ): Promise<{ success: boolean; message: string }> {
-  const admin = createAdminClient()
+  try {
+    const admin = createAdminClient()
 
-  const { error } = await admin
-    .from('monthly_subscriptions')
-    .update({ status: newStatus })
-    .eq('id', subscriptionId)
+    const { data: sub, error: fetchError } = await admin
+      .from('monthly_subscriptions')
+      .select('tenant_id')
+      .eq('id', subscriptionId)
+      .single()
 
-  if (error) {
-    return { success: false, message: 'Falha ao atualizar status da assinatura.' }
+    if (fetchError || !sub) {
+      return { success: false, message: 'Assinatura não encontrada.' }
+    }
+
+    await requireTenantStaff(sub.tenant_id)
+
+    const { error } = await admin
+      .from('monthly_subscriptions')
+      .update({ status: newStatus })
+      .eq('id', subscriptionId)
+
+    const labels = {
+      active: 'Assinatura ativada com sucesso!',
+      overdue: 'Assinatura marcada como inadimplente.',
+      cancelled: 'Assinatura cancelada com sucesso.',
+    }
+
+    return { success: true, message: labels[newStatus] || `Assinatura atualizada para "${newStatus}".` }
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Erro de autorização.' }
   }
-
-  const labels = {
-    active: 'Assinatura ativada com sucesso!',
-    overdue: 'Assinatura marcada como inadimplente.',
-    cancelled: 'Assinatura cancelada com sucesso.',
-  }
-
-  return { success: true, message: labels[newStatus] }
 }
 
 export async function checkSubscriberStatus(

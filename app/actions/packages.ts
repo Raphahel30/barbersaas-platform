@@ -3,6 +3,7 @@
 import { randomBytes } from 'node:crypto'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { createWhatsAppUrl } from '@/lib/services/whatsapp'
+import { requireTenantStaff, requireTenantOwner } from '@/lib/auth/guards'
 
 export interface ServicePackageItem {
   id: string
@@ -133,6 +134,56 @@ export async function listTenantPackages(
 }
 
 /**
+ * Cria um novo pacote de serviços (exclusivo para donos do tenant).
+ */
+export async function createPackageAction(
+  tenantId: string,
+  input: CreatePackageInput,
+): Promise<{ success: boolean; data?: ServicePackageItem; error?: string }> {
+  try {
+    await requireTenantOwner(tenantId)
+    const admin = createAdminClient()
+
+    const { data: pkg, error } = await admin
+      .from('service_packages')
+      .insert({
+        tenant_id: tenantId,
+        name: input.name,
+        description: input.description || null,
+        price: input.price,
+        total_credits: input.totalCredits,
+        service_id: input.serviceId,
+        validity_days: input.validityDays || 60,
+        is_active: true,
+      })
+      .select()
+      .single()
+
+    if (error || !pkg) throw error || new Error('Falha ao criar pacote.')
+
+    return {
+      success: true,
+      data: {
+        id: pkg.id,
+        tenantId: pkg.tenant_id,
+        name: pkg.name,
+        description: pkg.description,
+        price: pkg.price,
+        totalCredits: pkg.total_credits,
+        serviceId: pkg.service_id,
+        validityDays: pkg.validity_days,
+        isActive: pkg.is_active,
+      },
+    }
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Falha ao criar pacote de serviços.',
+    }
+  }
+}
+
+/**
  * Registra a compra de um pacote e credita as sessões para o cliente.
  */
 export async function purchasePackageAction(
@@ -141,6 +192,7 @@ export async function purchasePackageAction(
   packageId: string,
 ): Promise<{ success: boolean; creditsGranted: number; error?: string }> {
   try {
+    await requireTenantStaff(tenantId)
     const admin = createAdminClient()
 
     // 1. Busca detalhes do pacote

@@ -4,6 +4,7 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { DEFAULT_SITE_CONFIG, type TenantSiteConfigData } from '@/lib/builder/defaults'
+import { requireTenantOwner } from '@/lib/auth/guards'
 
 export type { TenantSiteConfigData }
 
@@ -119,27 +120,11 @@ export async function saveSiteConfig(
   data: Partial<TenantSiteConfigData>,
   tenantSlug?: string
 ): Promise<{ success: boolean; message: string }> {
-  const admin = createAdminClient()
-
   try {
-    const supabase = await createClient()
-    const { data: claimsData } = await supabase.auth.getClaims()
-    const userId = typeof claimsData?.claims?.sub === 'string' ? claimsData.claims.sub : null
-    
-    if (userId) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('tenant_id, role')
-        .eq('id', userId)
-        .maybeSingle()
+    // 1. Validação estrita de posse do tenant
+    await requireTenantOwner(tenantId)
 
-      if (profile && profile.role !== 'super_admin' && profile.tenant_id !== tenantId) {
-        return {
-          success: false,
-          message: 'Acesso não autorizado. Você só pode personalizar a sua própria barbearia.',
-        }
-      }
-    }
+    const admin = createAdminClient()
 
     const payload = {
       tenant_id: tenantId,

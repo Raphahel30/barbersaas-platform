@@ -1,6 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/utils/supabase/admin'
+import { requireTenantStaff } from '@/lib/auth/guards'
 
 export interface SubmitReviewInput {
   appointmentId: string
@@ -199,5 +200,41 @@ export async function submitAppointmentReview(
       message: 'Erro ao processar sua avaliação.',
       error: err instanceof Error ? err.message : String(err),
     }
+  }
+}
+
+/**
+ * Consulta avaliações recebidas pela barbearia (Exclusivo para equipe do tenant).
+ */
+export async function listTenantReviewsAction(
+  tenantId: string
+): Promise<{ success: boolean; data: any[]; error?: string }> {
+  try {
+    await requireTenantStaff(tenantId)
+    const admin = createAdminClient()
+
+    const { data, error } = await admin
+      .from('appointment_reviews')
+      .select(`
+        id,
+        appointment_id,
+        rating,
+        tags,
+        comment,
+        status,
+        created_at,
+        appointment:appointments (
+          guest_name,
+          barber:profiles!appointments_barber_id_fkey (full_name)
+        )
+      `)
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    return { success: true, data: data || [] }
+  } catch (err: any) {
+    return { success: false, data: [], error: err?.message || 'Falha ao buscar avaliações.' }
   }
 }

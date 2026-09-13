@@ -1,6 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/utils/supabase/admin'
+import { requireTenantStaff } from '@/lib/auth/guards'
 
 import { getMonthlySubscribers } from '@/app/actions/monthly-club'
 
@@ -46,8 +47,9 @@ async function resolveTenantId(slugOrId: string): Promise<string> {
 }
 
 export async function getCRMClientList(tenantSlugOrId: string): Promise<CRMClient[]> {
-  const admin = createAdminClient()
   const tenantId = await resolveTenantId(tenantSlugOrId)
+  await requireTenantStaff(tenantId)
+  const admin = createAdminClient()
 
   // Buscar agendamentos concluídos ou com presença
   const [appointmentsRes, subscribers] = await Promise.all([

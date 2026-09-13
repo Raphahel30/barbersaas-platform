@@ -14,6 +14,7 @@ export type AuthorizedUser = {
   userId: string
   email: string
   profile: Profile
+  user?: { id: string; email: string }
 }
 
 async function getVerifiedIdentity() {
@@ -22,12 +23,14 @@ async function getVerifiedIdentity() {
   const subject = typeof data?.claims?.sub === 'string' ? data.claims.sub : null
   const email = typeof data?.claims?.email === 'string' ? data.claims.email.toLowerCase() : null
 
-  if (error || !subject || !email) redirect('/login')
+  if (error || !subject || !email) {
+    throw new Error('Não autenticado. Por favor, realize o login.')
+  }
 
   return { email, subject, supabase }
 }
 
-async function getActiveProfile(): Promise<AuthorizedUser> {
+export async function requireAuthenticatedUser(): Promise<AuthorizedUser> {
   const { email, subject, supabase } = await getVerifiedIdentity()
   const { data: profile, error } = await supabase
     .from('profiles')
@@ -35,13 +38,22 @@ async function getActiveProfile(): Promise<AuthorizedUser> {
     .eq('id', subject)
     .maybeSingle()
 
-  if (error || !profile || !profile.is_active) redirect('/login')
+  if (error || !profile || !profile.is_active) {
+    throw new Error('Perfil de usuário inativo ou não encontrado.')
+  }
 
-  return { email, userId: subject, profile }
+  return {
+    userId: subject,
+    email,
+    profile,
+    user: { id: subject, email },
+  }
 }
 
 function assertTenantId(tenantId: string): void {
-  if (!UUID_PATTERN.test(tenantId)) notFound()
+  if (!UUID_PATTERN.test(tenantId)) {
+    throw new Error('Identificador de barbearia inválido.')
+  }
 }
 
 export async function requireSuperAdmin(): Promise<{
@@ -50,35 +62,59 @@ export async function requireSuperAdmin(): Promise<{
 }> {
   const { email, subject } = await getVerifiedIdentity()
 
-  if (email !== SUPER_ADMIN_EMAIL) notFound()
+  if (email !== SUPER_ADMIN_EMAIL) {
+    throw new Error('Acesso restrito ao Super Administrador da plataforma.')
+  }
 
   return { userId: subject, email: SUPER_ADMIN_EMAIL }
 }
 
-export async function requireOwner(tenantId: string): Promise<AuthorizedUser> {
+export async function requireTenantOwner(tenantId: string): Promise<AuthorizedUser> {
   assertTenantId(tenantId)
-  const authorizedUser = await getActiveProfile()
+  const authUser = await requireAuthenticatedUser()
 
-  if (
-    authorizedUser.profile.role !== 'owner' ||
-    authorizedUser.profile.tenant_id !== tenantId
-  ) {
-    notFound()
+  const isSuperAdmin = authUser.email === SUPER_ADMIN_EMAIL || authUser.profile.role === 'super_admin'
+  const isOwner = authUser.profile.role === 'owner' && authUser.profile.tenant_id === tenantId
+
+  if (!isSuperAdmin && !isOwner) {
+    throw new Error('Acesso negado: Você não tem permissão de proprietário para gerenciar esta barbearia.')
   }
 
-  return authorizedUser
+  return authUser
+}
+
+export async function requireOwner(tenantId: string): Promise<AuthorizedUser> {
+  return requireTenantOwner(tenantId)
+}
+
+export async function requireTenantStaff(tenantId: string): Promise<AuthorizedUser> {
+  assertTenantId(tenantId)
+  const authUser = await requireAuthenticatedUser()
+
+  const isSuperAdmin = authUser.email === SUPER_ADMIN_EMAIL || authUser.profile.role === 'super_admin'
+  const isStaff =
+    ['owner', 'barber', 'receptionist'].includes(authUser.profile.role) &&
+    authUser.profile.tenant_id === tenantId
+
+  if (!isSuperAdmin && !isStaff) {
+    throw new Error('Acesso negado: Você não faz parte da equipe desta barbearia.')
+  }
+
+  return authUser
 }
 
 export async function requireBarber(tenantId: string): Promise<AuthorizedUser> {
   assertTenantId(tenantId)
-  const authorizedUser = await getActiveProfile()
+  const authUser = await requireAuthenticatedUser()
 
-  if (
-    authorizedUser.profile.role !== 'barber' ||
-    authorizedUser.profile.tenant_id !== tenantId
-  ) {
-    notFound()
+  const isSuperAdmin = authUser.email === SUPER_ADMIN_EMAIL || authUser.profile.role === 'super_admin'
+  const isBarber =
+    (authUser.profile.role === 'barber' || authUser.profile.role === 'owner') &&
+    authUser.profile.tenant_id === tenantId
+
+  if (!isSuperAdmin && !isBarber) {
+    throw new Error('Acesso negado: Ação permitida apenas para barbeiros vinculados a esta unidade.')
   }
 
-  return authorizedUser
+  return authUser
 }
