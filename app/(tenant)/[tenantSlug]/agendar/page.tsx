@@ -11,7 +11,7 @@ import {
 } from '@/app/actions/booking'
 import { generateReservationFeePix } from '@/app/actions/checkout'
 import { joinWaitlistAction } from '@/app/actions/waitlist'
-import { checkSubscriberStatus, type MonthlySubscriber } from '@/app/actions/monthly-club'
+import { checkSubscriberStatus, type PublicMonthlySubscriber } from '@/app/actions/monthly-club'
 import { createClient } from '@/utils/supabase/client'
 import { Crown, Sparkles, Gift, Clock, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react'
 
@@ -71,7 +71,7 @@ export default function BookingFunnelPage() {
   const [guestName, setGuestName] = useState('')
   const [guestPhone, setGuestPhone] = useState('')
   const [notes, setNotes] = useState('')
-  const [subscriberInfo, setSubscriberInfo] = useState<MonthlySubscriber | null>(null)
+  const [subscriberInfo, setSubscriberInfo] = useState<PublicMonthlySubscriber | null>(null)
   const [checkingSubscriber, setCheckingSubscriber] = useState(false)
   const [isBirthday, setIsBirthday] = useState(false)
 

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 import type { Database } from '@/types/database.types'
 import { updateSession } from '@/utils/supabase/middleware'
-import { checkAuthRateLimit, checkHoldRateLimit } from '@/lib/security/rate-limit'
+import { checkDistributedRateLimit } from '@/lib/security/rate-limit'
 
 type TenantStatus = Database['public']['Enums']['tenant_status']
 
@@ -105,7 +105,7 @@ export async function middleware(request: NextRequest) {
 
   // Proteção de Força Bruta em Autenticação
   if (pathname.startsWith('/api/auth')) {
-    const authLimit = checkAuthRateLimit(clientIp)
+    const authLimit = await checkDistributedRateLimit(`auth:${clientIp}`, 5, 15 * 60 * 1000)
     if (!authLimit.success) {
       return NextResponse.json(
         { error: 'Muitas tentativas de autenticação. Aguarde alguns minutos antes de tentar novamente.' },
@@ -122,7 +122,7 @@ export async function middleware(request: NextRequest) {
 
   // Proteção Anti-Spam de Holds de Agendamento (bloqueio de grade proposital)
   if (request.method === 'POST' && (pathname.includes('/agendar') || pathname.endsWith('/hold'))) {
-    const holdLimit = checkHoldRateLimit(clientIp)
+    const holdLimit = await checkDistributedRateLimit(`hold:${clientIp}`, 3, 15 * 60 * 1000)
     if (!holdLimit.success) {
       return NextResponse.json(
         { error: 'Muitas tentativas de reserva. Aguarde alguns minutos para liberar a grade.' },

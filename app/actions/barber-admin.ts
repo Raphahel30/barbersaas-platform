@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/utils/supabase/admin'
 import type { Json } from '@/types/database.types'
+import { requireTenantOwner, requireTenantStaff } from '@/lib/auth/guards'
 
 export type BarberAdminData = {
   tenant: {
@@ -95,6 +96,8 @@ export async function getBarberAdminData(tenantSlug: string): Promise<BarberAdmi
 
   if (!tenant) return null
 
+  await requireTenantStaff(tenant.id)
+
   // 2. Obter serviços, barbeiros, agendamentos, produtos e comandas em paralelo
   const [servicesRes, profilesRes, appointmentsRes, productsRes, tabsRes] = await Promise.all([
     admin
@@ -157,51 +160,7 @@ export async function getBarberAdminData(tenantSlug: string): Promise<BarberAdmi
     }
   })
 
-  // Se não houver agendamentos na base, fornecemos lista demonstrativa estruturada
-  const activeAppointments = appointments.length > 0 ? appointments : [
-    {
-      id: 'apt-demo-1',
-      client_name: 'Rodrigo Guimarães',
-      client_phone: '(11) 98765-4321',
-      barber_id: barbers[0]?.id || 'b1',
-      barber_name: barbers[0]?.full_name || 'Mestre Navalhista',
-      service_name: 'Corte Degradê Navalhado',
-      starts_at: new Date(Date.now() + 1000 * 60 * 30).toISOString(),
-      ends_at: new Date(Date.now() + 1000 * 60 * 70).toISOString(),
-      status: 'confirmed' as const,
-      total_amount: 55,
-      is_walk_in: false,
-      payment_method: 'PIX',
-    },
-    {
-      id: 'apt-demo-2',
-      client_name: 'Mateus Oliveira (Walk-in)',
-      client_phone: '(11) 97111-2233',
-      barber_id: barbers[0]?.id || 'b1',
-      barber_name: barbers[0]?.full_name || 'Mestre Navalhista',
-      service_name: 'Barboterapia com Toalha Quente',
-      starts_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-      ends_at: new Date(Date.now() + 1000 * 60 * 20).toISOString(),
-      status: 'arrived' as const,
-      total_amount: 45,
-      is_walk_in: true,
-      payment_method: 'DINHEIRO',
-    },
-    {
-      id: 'apt-demo-3',
-      client_name: 'Guilherme Siqueira',
-      client_phone: '(11) 99333-4455',
-      barber_id: barbers[0]?.id || 'b1',
-      barber_name: barbers[0]?.full_name || 'Mestre Navalhista',
-      service_name: 'Combo Cabelo + Barba VIP',
-      starts_at: new Date(Date.now() + 1000 * 60 * 120).toISOString(),
-      ends_at: new Date(Date.now() + 1000 * 60 * 180).toISOString(),
-      status: 'hold' as const,
-      total_amount: 90,
-      is_walk_in: false,
-      payment_method: 'PIX',
-    },
-  ]
+  const activeAppointments = appointments
 
   // Mapear Comandas
   const tabs = rawTabs.map((t, idx) => ({
@@ -221,36 +180,10 @@ export async function getBarberAdminData(tenantSlug: string): Promise<BarberAdmi
       : [],
   }))
 
-  const activeTabs = tabs.length > 0 ? tabs : [
-    {
-      id: 'tab-1',
-      client_name: 'Rodrigo Guimarães',
-      chair_number: 'Cadeira 01 (Mestre)',
-      total_amount: 32,
-      status: 'open' as const,
-      items: [
-        { id: 'item-1', product_name: 'Cerveja Artesanal IPA', quantity: 2, unit_price: 16, total_price: 32 },
-      ],
-    },
-    {
-      id: 'tab-2',
-      client_name: 'Mateus Oliveira',
-      chair_number: 'Cadeira 02',
-      total_amount: 45,
-      status: 'open' as const,
-      items: [
-        { id: 'item-2', product_name: 'Pomada Efeito Matte 100g', quantity: 1, unit_price: 45, total_price: 45 },
-      ],
-    },
-  ]
+  const activeTabs = tabs
 
   // Produtos padrão para o Bar/Balcão
-  const products = rawProducts.length > 0 ? rawProducts : [
-    { id: 'prod-1', name: 'Cerveja Artesanal IPA (500ml)', price: 16, stock_quantity: 48, category: 'Bar' },
-    { id: 'prod-2', name: 'Refrigerante Lata / Água c/ Gás', price: 6, stock_quantity: 60, category: 'Bar' },
-    { id: 'prod-3', name: 'Pomada Modeladora Matte 100g', price: 45, stock_quantity: 24, category: 'Balcão' },
-    { id: 'prod-4', name: 'Óleo Hidratante de Barba (30ml)', price: 38, stock_quantity: 18, category: 'Balcão' },
-  ]
+  const products = rawProducts
 
   // Cálculo Financeiro (Lei do Salão-Parceiro)
   const totalRevenue = activeAppointments
@@ -309,6 +242,7 @@ export async function createWalkInAppointment(
     paymentMethod: string
   }
 ): Promise<{ success: boolean; message: string }> {
+  await requireTenantStaff(tenantId)
   const admin = createAdminClient()
 
   const startsAt = new Date().toISOString()
@@ -364,6 +298,14 @@ export async function updateAppointmentStatus(
 ): Promise<{ success: boolean; message: string }> {
   const admin = createAdminClient()
 
+  const { data: appointment } = await admin
+    .from('appointments')
+    .select('tenant_id')
+    .eq('id', appointmentId)
+    .maybeSingle()
+  if (!appointment) return { success: false, message: 'Agendamento não encontrado.' }
+  await requireTenantStaff(appointment.tenant_id)
+
   const { error } = await admin
     .from('appointments')
     .update({
@@ -371,6 +313,7 @@ export async function updateAppointmentStatus(
       updated_at: new Date().toISOString(),
     })
     .eq('id', appointmentId)
+    .eq('tenant_id', appointment.tenant_id)
 
   if (error) {
     return { success: false, message: 'Falha ao atualizar status.' }
@@ -391,6 +334,7 @@ export async function saveService(
     reservationFee: number
   }
 ): Promise<{ success: boolean; message: string }> {
+  await requireTenantOwner(tenantId)
   const admin = createAdminClient()
 
   if (service.id && !service.id.startsWith('demo')) {
@@ -430,7 +374,16 @@ export async function addItemToTab(
   productName: string,
   price: number
 ): Promise<{ success: boolean; message: string }> {
+  await requireTenantStaff(tenantId)
   const admin = createAdminClient()
+
+  const { data: ownedTab } = await admin
+    .from('customer_tabs')
+    .select('id')
+    .eq('id', tabId)
+    .eq('tenant_id', tenantId)
+    .maybeSingle()
+  if (!ownedTab) return { success: false, message: 'Comanda não encontrada.' }
 
   // Adicionar item na comanda
   const { error: itemError } = await admin.from('customer_tab_items').insert({
@@ -471,6 +424,7 @@ export async function blockScheduleSlot(
     reason: string
   }
 ): Promise<{ success: boolean; message: string }> {
+  await requireTenantStaff(tenantId)
   const admin = createAdminClient()
 
   const startsAt = new Date(`${data.date}T${data.startTime}:00`).toISOString()
@@ -516,6 +470,7 @@ export async function deleteService(
   tenantSlug: string,
   serviceId: string
 ): Promise<{ success: boolean; message: string }> {
+  await requireTenantOwner(tenantId)
   const admin = createAdminClient()
 
   const { error } = await admin
@@ -541,6 +496,7 @@ export async function saveProduct(
     category?: string
   }
 ): Promise<{ success: boolean; message: string }> {
+  await requireTenantOwner(tenantId)
   const admin = createAdminClient()
 
   if (product.id && !product.id.startsWith('prod-')) {
@@ -574,6 +530,7 @@ export async function deleteProduct(
   tenantSlug: string,
   productId: string
 ): Promise<{ success: boolean; message: string }> {
+  await requireTenantOwner(tenantId)
   const admin = createAdminClient()
 
   const { error } = await admin
@@ -594,6 +551,7 @@ export async function closeTab(
   tabId: string,
   paymentMethod: string
 ): Promise<{ success: boolean; message: string }> {
+  await requireTenantStaff(tenantId)
   const admin = createAdminClient()
 
   const { error } = await admin
@@ -620,6 +578,7 @@ export async function updateStoreSettings(
     whatsappMessage: string
   }
 ): Promise<{ success: boolean; message: string }> {
+  await requireTenantOwner(tenantId)
   const admin = createAdminClient()
 
   const visualSettings: Json = {
@@ -641,5 +600,4 @@ export async function updateStoreSettings(
   revalidatePath(`/${tenantSlug}/admin`)
   return { success: true, message: 'Personalização da loja atualizada com sucesso!' }
 }
-
 

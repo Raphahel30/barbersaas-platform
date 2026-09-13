@@ -90,6 +90,7 @@ async function confirmedPayment(provider: GatewayProvider, payload: Payload) {
 
   let paid = false
   let verifiedReference: string | null = null
+  const expectedAmountCents = Math.round(Number(candidate.data.reservation_fee) * 100)
 
   if (provider === 'mercado_pago') {
     const response = await fetch(
@@ -99,7 +100,11 @@ async function confirmedPayment(provider: GatewayProvider, payload: Payload) {
       },
     )
     const body = (await response.json()) as Payload
-    paid = response.ok && body.status === 'approved'
+    paid =
+      response.ok &&
+      body.status === 'approved' &&
+      Math.round(Number(body.transaction_amount) * 100) === expectedAmountCents &&
+      String(body.currency_id ?? 'BRL').toUpperCase() === 'BRL'
     verifiedReference = text(body.external_reference)
   }
 
@@ -109,7 +114,10 @@ async function confirmedPayment(provider: GatewayProvider, payload: Payload) {
       headers: { access_token: String(connection.credentials.access_token) },
     })
     const body = (await response.json()) as Payload
-    paid = response.ok && ['RECEIVED', 'CONFIRMED'].includes(String(body.status))
+    paid =
+      response.ok &&
+      ['RECEIVED', 'CONFIRMED'].includes(String(body.status)) &&
+      Math.round(Number(body.value) * 100) === expectedAmountCents
     verifiedReference = text(body.externalReference)
   }
 
@@ -122,7 +130,12 @@ async function confirmedPayment(provider: GatewayProvider, payload: Payload) {
     )
     const body = (await response.json()) as Payload
     const charges = body.charges as Payload[] | undefined
-    paid = response.ok && Boolean(charges?.some((charge) => charge.status === 'PAID'))
+    paid = response.ok && Boolean(charges?.some((charge) => {
+      const amount = charge.amount as Payload | undefined
+      return charge.status === 'PAID' &&
+        Number(amount?.value) === expectedAmountCents &&
+        String(amount?.currency ?? 'BRL').toUpperCase() === 'BRL'
+    }))
     verifiedReference = text(body.reference_id)
   }
 
@@ -141,7 +154,7 @@ async function confirmedPayment(provider: GatewayProvider, payload: Payload) {
     paid =
       response.ok &&
       body.paid === true &&
-      Number(body.amount) === Math.round(candidate.data.reservation_fee * 100)
+      Number(body.amount) === expectedAmountCents
     verifiedReference = candidate.data.id
   }
 
@@ -239,8 +252,21 @@ export async function POST(
       })
       .eq('id', appointment.id)
       .eq('status', 'hold')
+      .select('id')
+      .maybeSingle()
 
     if (update.error) throw update.error
+    if (!update.data) {
+      await admin
+        .from('gateway_webhook_events')
+        .update({
+          appointment_id: appointment.id,
+          status: 'processed',
+          processed_at: new Date().toISOString(),
+        })
+        .eq('id', event.data.id)
+      return Response.json({ received: true, already_confirmed: true })
+    }
 
     await admin
       .from('gateway_webhook_events')

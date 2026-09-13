@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 
     const { data: tenant, error: tenantError } = await query.maybeSingle()
 
-    if (tenantError || !tenant || tenant.status === 'suspended') {
+    if (tenantError || !tenant || !['active', 'trial'].includes(tenant.status)) {
       return NextResponse.json(
         { error: 'Barbearia não encontrada ou inativa' },
         { status: 404 }
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
 
       admin
         .from('profiles')
-        .select('id, full_name, email, phone, role, avatar_url, is_active')
+        .select('id, full_name, role, avatar_url, is_active')
         .eq('tenant_id', tenant.id)
         .eq('is_active', true)
         .in('role', ['barber', 'owner'])
@@ -66,8 +66,6 @@ export async function GET(req: NextRequest) {
       slug: tenant.slug,
       status: tenant.status,
       phone: (tenant as any).phone || tenantAddressObj.phone || '',
-      document_number: tenant.document_number || '',
-      owner_name: tenant.owner_name || '',
       address: {
         street: tenant.address_street || tenantAddressObj.street || '',
         number: tenant.address_number || tenantAddressObj.number || '',

@@ -118,21 +118,16 @@ test.describe('Fluxo Crítico de Agendamento Transacional e Pix', () => {
   })
 
   test('Cenário 2: Simulação de confirmação de Pix altera status para scheduled/confirmed', async () => {
-    const { data: tenant } = await admin
-      .from('tenants')
-      .select('id')
-      .eq('status', 'active')
-      .limit(1)
-      .single()
-    const tenantId = tenant!.id
-
     const { data: barber } = await admin
       .from('profiles')
-      .select('id')
-      .eq('tenant_id', tenantId)
+      .select('id, tenant_id, tenants!inner(status)')
       .in('role', ['barber', 'owner'])
+      .eq('is_active', true)
+      .in('tenants.status', ['active', 'trial'])
       .limit(1)
       .single()
+    expect(barber?.tenant_id).toBeTruthy()
+    const tenantId = barber!.tenant_id!
 
     const { data: service } = await admin
       .from('services')
@@ -191,21 +186,16 @@ test.describe('Fluxo Crítico de Agendamento Transacional e Pix', () => {
   })
 
   test('Cenário 3: Mensalista identificado tem sinal zerado e corte debitado atomicamente', async () => {
-    const { data: tenant } = await admin
-      .from('tenants')
-      .select('id')
-      .eq('status', 'active')
-      .limit(1)
-      .single()
-    const tenantId = tenant!.id
-
     const { data: barber } = await admin
       .from('profiles')
-      .select('id')
-      .eq('tenant_id', tenantId)
+      .select('id, tenant_id, tenants!inner(status)')
       .in('role', ['barber', 'owner'])
+      .eq('is_active', true)
+      .in('tenants.status', ['active', 'trial'])
       .limit(1)
       .single()
+    expect(barber?.tenant_id).toBeTruthy()
+    const tenantId = barber!.tenant_id!
 
     const { data: service } = await admin
       .from('services')
@@ -281,21 +271,17 @@ test.describe('Fluxo Crítico de Agendamento Transacional e Pix', () => {
   })
 
   test('Cenário 4: Tentativa de agendamento no mesmo horário por outro usuário recebe erro de conflito', async () => {
-    const { data: tenant } = await admin
-      .from('tenants')
-      .select('id')
-      .eq('status', 'active')
-      .limit(1)
-      .single()
-    const tenantId = tenant!.id
-
-    const { data: barber } = await admin
+    const { data: barber, error: barberError } = await admin
       .from('profiles')
-      .select('id')
-      .eq('tenant_id', tenantId)
+      .select('id, tenant_id')
       .in('role', ['barber', 'owner'])
+      .eq('is_active', true)
+      .not('tenant_id', 'is', null)
       .limit(1)
       .single()
+    expect(barberError).toBeNull()
+    expect(barber?.tenant_id).toBeTruthy()
+    const tenantId = barber!.tenant_id!
 
     const { data: service } = await admin
       .from('services')
@@ -309,8 +295,7 @@ test.describe('Fluxo Crítico de Agendamento Transacional e Pix', () => {
     const startsAt = futureDate.toISOString()
     const endsAt = new Date(futureDate.getTime() + 30 * 60000).toISOString()
 
-    // Primeiro agendamento (sucesso)
-    const { data: res1 } = await (admin as any).rpc('create_appointment_hold_atomic', {
+    const bookingOne = (admin as any).rpc('create_appointment_hold_atomic', {
       p_tenant_id: tenantId,
       p_barber_id: barber!.id,
       p_service_ids: [service!.id],
@@ -324,10 +309,7 @@ test.describe('Fluxo Crítico de Agendamento Transacional e Pix', () => {
       p_tracking_token_hash: 'e2e_test_token_hash_0004a',
     })
 
-    expect(res1.success).toBe(true)
-
-    // Segundo agendamento no mesmo horário para o mesmo barbeiro (deve falhar por conflito)
-    const { data: res2 } = await (admin as any).rpc('create_appointment_hold_atomic', {
+    const bookingTwo = (admin as any).rpc('create_appointment_hold_atomic', {
       p_tenant_id: tenantId,
       p_barber_id: barber!.id,
       p_service_ids: [service!.id],
@@ -341,10 +323,19 @@ test.describe('Fluxo Crítico de Agendamento Transacional e Pix', () => {
       p_tracking_token_hash: 'e2e_test_token_hash_0004b',
     })
 
-    expect(res2.success).toBe(false)
-    expect(res2.error).toContain('Horário indisponível ou já reservado')
+    // As duas chamadas começam juntas; a garantia deve vir do banco, não da ordem do teste.
+    const results = await Promise.all([bookingOne, bookingTwo])
+    const successes = results.filter((result) => result.data?.success === true)
+    const rejected = results.filter(
+      (result) =>
+        result.data?.success === false ||
+        result.error?.message?.includes('Horário indisponível ou já reservado'),
+    )
+
+    expect(successes).toHaveLength(1)
+    expect(rejected).toHaveLength(1)
 
     // Limpeza
-    await admin.from('appointments').delete().eq('id', res1.appointment_id)
+    await admin.from('appointments').delete().eq('id', successes[0].data.appointment_id)
   })
 })

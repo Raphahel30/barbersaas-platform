@@ -57,6 +57,7 @@ export async function createQuickBarbershop(data: OnboardingWizardInput): Promis
 
   let organizationId: string | null = null
   let tenantId: string | null = null
+  let createdUserId: string | null = null
 
   try {
     // 2. Verificar duplicidade de Slug
@@ -79,9 +80,7 @@ export async function createQuickBarbershop(data: OnboardingWizardInput): Promis
 
     const planId = plans && plans.length > 0 ? plans[0].id : null
 
-    // 4. Criar ou Obter Usuário no Auth
-    let userId: string
-
+    // 4. Criar um novo usuário. Contas existentes nunca são reassociadas.
     const { data: userData, error: userError } = await admin.auth.admin.createUser({
       email: cleanEmail,
       password: data.password,
@@ -93,17 +92,13 @@ export async function createQuickBarbershop(data: OnboardingWizardInput): Promis
     })
 
     if (userError) {
-      // Se usuário já existir, tentar autenticar ou associar
-      const { data: existingUsers } = await admin.auth.admin.listUsers()
-      const match = existingUsers.users.find((u) => u.email === cleanEmail)
-      if (match) {
-        userId = match.id
-      } else {
-        return { success: false, message: userError?.message || 'Falha ao criar usuário.' }
+      return {
+        success: false,
+        message: 'Não foi possível criar a conta. Se este e-mail já estiver cadastrado, entre com sua conta existente.',
       }
-    } else {
-      userId = userData.user.id
     }
+    const userId = userData.user.id
+    createdUserId = userId
 
     // 5. Criar Organização
     const rawDoc = data.document?.replace(/\D/g, '') || data.pixKey.replace(/\D/g, '')
@@ -201,10 +196,11 @@ export async function createQuickBarbershop(data: OnboardingWizardInput): Promis
 
     // 10. Iniciar Sessão no cliente Next.js com as credenciais
     const supabase = await createClient()
-    await supabase.auth.signInWithPassword({
+    const { error: signInError } = await supabase.auth.signInWithPassword({
       email: cleanEmail,
       password: data.password,
     })
+    if (signInError) throw signInError
 
     return {
       success: true,
@@ -216,6 +212,7 @@ export async function createQuickBarbershop(data: OnboardingWizardInput): Promis
     // Rollback em caso de falha crítica
     if (tenantId) await admin.from('tenants').delete().eq('id', tenantId)
     if (organizationId) await admin.from('organizations').delete().eq('id', organizationId)
+    if (createdUserId) await admin.auth.admin.deleteUser(createdUserId)
     return {
       success: false,
       message: 'Houve uma falha ao cadastrar a barbearia. Verifique os dados e tente novamente.',

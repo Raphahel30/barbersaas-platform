@@ -579,22 +579,29 @@ export async function checkAppointmentPaymentStatus(
       }
 
       const storedHash = (apt as any).tracking_token_hash
-      if (storedHash) {
-        const providedHash = crypto.createHash('sha256').update(trackingToken).digest('hex')
-        const hashBuffer = Buffer.from(providedHash, 'utf8')
-        const storedBuffer = Buffer.from(storedHash, 'utf8')
+      if (!storedHash) {
+        return {
+          success: false,
+          status: 'unauthorized',
+          isConfirmed: false,
+          paymentStatus: 'unauthorized',
+          message: 'Este agendamento não possui acompanhamento público habilitado.',
+        }
+      }
+      const providedHash = crypto.createHash('sha256').update(trackingToken).digest('hex')
+      const hashBuffer = Buffer.from(providedHash, 'utf8')
+      const storedBuffer = Buffer.from(storedHash, 'utf8')
 
-        if (
-          hashBuffer.length !== storedBuffer.length ||
-          !crypto.timingSafeEqual(hashBuffer, storedBuffer)
-        ) {
-          return {
-            success: false,
-            status: 'unauthorized',
-            isConfirmed: false,
-            paymentStatus: 'unauthorized',
-            message: 'Token de acompanhamento inválido.',
-          }
+      if (
+        hashBuffer.length !== storedBuffer.length ||
+        !crypto.timingSafeEqual(hashBuffer, storedBuffer)
+      ) {
+        return {
+          success: false,
+          status: 'unauthorized',
+          isConfirmed: false,
+          paymentStatus: 'unauthorized',
+          message: 'Token de acompanhamento inválido.',
         }
       }
     }
@@ -628,4 +635,3 @@ export async function checkAppointmentPaymentStatus(
     }
   }
 }
-

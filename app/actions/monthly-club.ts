@@ -18,6 +18,8 @@ export type MonthlySubscriber = {
   created_at: string
 }
 
+export type PublicMonthlySubscriber = Pick<MonthlySubscriber, 'plan_name' | 'cuts_remaining'>
+
 export type MonthlySubscriberInput = {
   client_name?: string
   clientName?: string
@@ -245,7 +247,7 @@ export async function checkSubscriberStatus(
 ): Promise<{
   isSubscriber: boolean
   hasCutsRemaining: boolean
-  subscription: MonthlySubscriber | null
+  subscription: PublicMonthlySubscriber | null
 }> {
   const admin = createAdminClient()
   const tenantId = await resolveTenantId(tenantSlugOrId)
@@ -272,19 +274,9 @@ export async function checkSubscriberStatus(
     return { isSubscriber: false, hasCutsRemaining: false, subscription: null }
   }
 
-  const sub: MonthlySubscriber = {
-    id: data.id,
-    tenant_id: data.tenant_id,
-    client_name: data.client_name,
-    client_phone: data.client_phone,
+  const sub: PublicMonthlySubscriber = {
     plan_name: data.plan_name,
-    cuts_included: Number(data.cuts_included || 4),
     cuts_remaining: Number(data.cuts_remaining || 0),
-    price_monthly: Number(data.price_monthly || 0),
-    status: data.status as MonthlySubscriber['status'],
-    cycle_start_date: data.cycle_start_date,
-    cycle_end_date: data.cycle_end_date,
-    created_at: data.created_at,
   }
 
   return {
@@ -295,65 +287,27 @@ export async function checkSubscriberStatus(
 }
 
 export async function consumeSubscriberCut(
-  subscriptionIdOrTenantSlug: string,
-  clientPhoneOrTenantSlug?: string,
+  subscriptionId: string,
+  tenantSlug: string,
 ): Promise<{ success: boolean; message: string; cutsRemaining?: number }> {
   const admin = createAdminClient()
-
-  // If first arg is a subscription ID (UUID)
-  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(subscriptionIdOrTenantSlug)) {
-    const { data: sub } = await admin
-      .from('monthly_subscriptions')
-      .select('*')
-      .eq('id', subscriptionIdOrTenantSlug)
-      .single()
-
-    if (!sub) {
-      return { success: false, message: 'Assinatura não encontrada.' }
-    }
-
-    if (Number(sub.cuts_remaining) <= 0) {
-      return { success: false, message: 'O assinante não possui mais cortes restantes no ciclo.' }
-    }
-
-    const nextCuts = Number(sub.cuts_remaining) - 1
-    await admin
-      .from('monthly_subscriptions')
-      .update({ cuts_remaining: nextCuts })
-      .eq('id', subscriptionIdOrTenantSlug)
-
-    return {
-      success: true,
-      message: `Corte debitado com sucesso! Restam ${nextCuts} cortes no ciclo atual.`,
-      cutsRemaining: nextCuts,
-    }
-  }
-
-  // Otherwise treat as (tenantSlug, clientPhone)
-  const tenantId = await resolveTenantId(subscriptionIdOrTenantSlug)
-  const clientPhone = clientPhoneOrTenantSlug || ''
-  const check = await checkSubscriberStatus(tenantId, clientPhone)
-
-  if (!check.isSubscriber || !check.subscription) {
-    return { success: false, message: 'Cliente não possui assinatura ativa nesta barbearia.' }
-  }
-
-  if (check.subscription.cuts_remaining <= 0) {
-    return {
-      success: false,
-      message: 'O assinante já utilizou todos os cortes incluídos no ciclo atual.',
-    }
-  }
-
-  const nextCuts = check.subscription.cuts_remaining - 1
-
-  const { error } = await admin
+  const tenantId = await resolveTenantId(tenantSlug)
+  await requireTenantStaff(tenantId)
+  const { data: sub } = await admin
     .from('monthly_subscriptions')
-    .update({ cuts_remaining: nextCuts })
-    .eq('id', check.subscription.id)
+    .select('tenant_id')
+    .eq('id', subscriptionId)
+    .eq('tenant_id', tenantId)
+    .maybeSingle()
+  if (!sub) return { success: false, message: 'Assinatura não encontrada.' }
 
-  if (error) {
-    return { success: false, message: 'Erro ao debitar corte do plano.' }
+  const { data, error } = await (admin.rpc as any)('consume_monthly_subscription_cut', {
+    p_subscription_id: subscriptionId,
+    p_tenant_id: tenantId,
+  })
+  const nextCuts = typeof data === 'number' ? data : null
+  if (error || nextCuts === null) {
+    return { success: false, message: 'Assinatura inativa, vencida ou sem cortes restantes.' }
   }
 
   return {
@@ -362,4 +316,3 @@ export async function consumeSubscriberCut(
     cutsRemaining: nextCuts,
   }
 }
-

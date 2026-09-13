@@ -109,6 +109,7 @@ export async function processQuickOnboarding(
 
   let organizationId: string | null = null
   let tenantId: string | null = null
+  let createdUserId: string | null = null
 
   try {
     // 2. Verificar duplicidade de slug
@@ -134,9 +135,7 @@ export async function processQuickOnboarding(
 
     const planId = plans && plans.length > 0 ? plans[0].id : null
 
-    // 4. Criar ou Obter Usuário no Auth
-    let userId: string
-
+    // 4. Criar um novo usuário. Contas existentes nunca são reassociadas.
     const { data: userData, error: userError } = await admin.auth.admin.createUser({
       email: cleanEmail,
       password: data.password,
@@ -148,17 +147,13 @@ export async function processQuickOnboarding(
     })
 
     if (userError) {
-      // Caso o usuário já exista no Auth, tentar associar
-      const { data: existingUsers } = await admin.auth.admin.listUsers()
-      const match = existingUsers.users.find((u) => u.email === cleanEmail)
-      if (match) {
-        userId = match.id
-      } else {
-        return { success: false, message: `Falha ao criar conta: ${userError.message}` }
+      return {
+        success: false,
+        message: 'Não foi possível criar a conta. Se este e-mail já estiver cadastrado, entre com sua conta existente.',
       }
-    } else {
-      userId = userData.user.id
     }
+    const userId = userData.user.id
+    createdUserId = userId
 
     // 5. Criar Organização
     const { data: org, error: orgError } = await admin
@@ -287,10 +282,11 @@ export async function processQuickOnboarding(
 
     // 11. Autenticar sessão no cliente
     const supabase = await createClient()
-    await supabase.auth.signInWithPassword({
+    const { error: signInError } = await supabase.auth.signInWithPassword({
       email: cleanEmail,
       password: data.password,
     })
+    if (signInError) throw signInError
 
     const targetRedirectUrl = `/${cleanSlug}/admin/personalizar`
 
@@ -304,6 +300,7 @@ export async function processQuickOnboarding(
     console.error('Erro no onboarding simplificado:', err)
     if (tenantId) await admin.from('tenants').delete().eq('id', tenantId)
     if (organizationId) await admin.from('organizations').delete().eq('id', organizationId)
+    if (createdUserId) await admin.auth.admin.deleteUser(createdUserId)
     return {
       success: false,
       message: err.message || 'Houve uma falha ao cadastrar a barbearia. Tente novamente.',
