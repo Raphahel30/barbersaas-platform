@@ -1,13 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { createAppointmentHold, fetchAvailableSlots, type CreateAppointmentHoldInput } from '@/app/actions/booking'
+import {
+  createAppointmentHold,
+  fetchAvailableSlots,
+  checkAppointmentPaymentStatus,
+  type CreateAppointmentHoldInput,
+} from '@/app/actions/booking'
 import { generateReservationFeePix } from '@/app/actions/checkout'
 import { joinWaitlistAction } from '@/app/actions/waitlist'
-import { checkSubscriberStatus, consumeSubscriberCut, type MonthlySubscriber } from '@/app/actions/monthly-club'
-import { Crown, Sparkles, Gift } from 'lucide-react'
+import { checkSubscriberStatus, type MonthlySubscriber } from '@/app/actions/monthly-club'
+import { createClient } from '@/utils/supabase/client'
+import { Crown, Sparkles, Gift, Clock, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react'
 
 type ServiceItem = {
   id: string
@@ -79,6 +85,8 @@ export default function BookingFunnelPage() {
   } | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [checkingPayment, setCheckingPayment] = useState(false)
+  const [paymentStatusMessage, setPaymentStatusMessage] = useState<string | null>(null)
 
   // Lista de Espera State
   const [waitlistShift, setWaitlistShift] = useState<'morning' | 'afternoon' | 'night' | 'any'>('any')
@@ -150,6 +158,53 @@ export default function BookingFunnelPage() {
     return () => clearInterval(timer)
   }, [step, countdownSeconds])
 
+  // 4. Polling e Supabase Realtime para confirmação real do Pix
+  useEffect(() => {
+    if (step !== 4 || !holdAppointmentId) return
+
+    let isSubscribed = true
+
+    // Polling a cada 2.5 segundos
+    const interval = setInterval(async () => {
+      try {
+        const res = await checkAppointmentPaymentStatus(holdAppointmentId)
+        if (!isSubscribed) return
+        if (res.isConfirmed) {
+          setStep(5)
+        }
+      } catch (err) {
+        console.error('Erro no polling do Pix:', err)
+      }
+    }, 2500)
+
+    // Canal Realtime ouvindo UPDATE na linha do agendamento
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`appointment-payment-${holdAppointmentId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'appointments',
+          filter: `id=eq.${holdAppointmentId}`,
+        },
+        (payload: any) => {
+          const newStatus = payload.new?.status
+          if (newStatus === 'confirmed' || newStatus === 'scheduled' || newStatus === 'completed') {
+            if (isSubscribed) setStep(5)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      isSubscribed = false
+      clearInterval(interval)
+      supabase.removeChannel(channel)
+    }
+  }, [step, holdAppointmentId])
+
   // Verificação automática de Mensalista VIP ao digitar telefone
   useEffect(() => {
     const clean = guestPhone.replace(/\D/g, '')
@@ -177,11 +232,11 @@ export default function BookingFunnelPage() {
   const baseReservationFee = selectedServices.reduce((sum, s) => sum + Number(s.reservation_fee), 0)
 
   // Descontos aplicados
-  const isSubscriberCovered = subscriberInfo && subscriberInfo.cuts_remaining > 0
+  const isSubscriberCovered = Boolean(subscriberInfo && subscriberInfo.cuts_remaining > 0)
   let discountAmount = 0
   let discountLabel = ''
 
-  if (isSubscriberCovered) {
+  if (isSubscriberCovered && subscriberInfo) {
     discountAmount = basePrice // 100% coberto pelo clube
     discountLabel = `Clube VIP (${subscriberInfo.plan_name})`
   } else if (isBirthday) {
@@ -198,7 +253,7 @@ export default function BookingFunnelPage() {
     )
   }
 
-  // Criação do Hold Provisório
+  // Criação do Hold Provisório com Transação Atômica no Backend
   const handleProceedToCheckout = async () => {
     setErrorMessage('')
     if (!guestName.trim() || !guestPhone.trim()) {
@@ -239,7 +294,7 @@ export default function BookingFunnelPage() {
 
       const holdRes = await createAppointmentHold(holdInput)
       if (!holdRes.success) {
-        setErrorMessage(holdRes.message || 'Horário acabou de ser reservado por outro cliente.')
+        setErrorMessage(holdRes.message || 'Horário indisponível ou já reservado.')
         setIsProcessing(false)
         return
       }
@@ -248,21 +303,22 @@ export default function BookingFunnelPage() {
       setReservationFee(totalReservationFee)
       setCountdownSeconds(300)
 
-      // Se é mensalista, já debita 1 corte
-      if (isSubscriberCovered && subscriberInfo) {
-        await consumeSubscriberCut(subscriberInfo.id)
+      // Se for mensalista ou se o sinal for R$ 0,00, a transação atômica já confirmou o agendamento
+      const isMonthlyOrFree = (holdRes.data as any).isMonthlySubscriber || totalReservationFee === 0
+
+      if (isMonthlyOrFree) {
+        setStep(5)
+        return
       }
 
-      // Se há sinal de reserva, gera o Pix
-      if (totalReservationFee > 0) {
-        const pixRes = await generateReservationFeePix(holdRes.data.appointmentId)
-        if (pixRes.success && pixRes.data) {
-          setPixData({
-            qrCode: pixRes.data.qrCode,
-            qrCodeImage: pixRes.data.qrCodeImage,
-            checkoutUrl: pixRes.data.checkoutUrl,
-          })
-        }
+      // Se há sinal de reserva com Pix, gera a cobrança
+      const pixRes = await generateReservationFeePix(holdRes.data.appointmentId)
+      if (pixRes.success && pixRes.data) {
+        setPixData({
+          qrCode: pixRes.data.qrCode,
+          qrCodeImage: pixRes.data.qrCodeImage,
+          checkoutUrl: pixRes.data.checkoutUrl,
+        })
       }
 
       setStep(4)
@@ -270,6 +326,28 @@ export default function BookingFunnelPage() {
       setErrorMessage(err instanceof Error ? err.message : 'Falha ao processar reserva.')
     } finally {
       setIsProcessing(false)
+    }
+  }
+
+  // Verificação manual com validação real no banco de dados
+  const handleManualPaymentCheck = async () => {
+    if (!holdAppointmentId) return
+    setCheckingPayment(true)
+    setPaymentStatusMessage('Verificando compensação do Pix no banco...')
+    try {
+      const res = await checkAppointmentPaymentStatus(holdAppointmentId)
+      if (res.isConfirmed) {
+        setStep(5)
+      } else if (res.status === 'expired') {
+        setErrorMessage('O tempo limite de 5 minutos para pagamento do Pix expirou. Por favor, escolha um novo horário.')
+      } else {
+        setPaymentStatusMessage('Pagamento ainda não detectado. Aguarde alguns segundos após confirmar no seu aplicativo bancário.')
+        setTimeout(() => setPaymentStatusMessage(null), 5000)
+      }
+    } catch {
+      setPaymentStatusMessage('Erro ao verificar status. Tente novamente em instantes.')
+    } finally {
+      setCheckingPayment(false)
     }
   }
 
@@ -684,65 +762,114 @@ export default function BookingFunnelPage() {
         {/* PASSO 4: CHECKOUT DO SINAL (HOLD PIX 5 MINUTOS) */}
         {step === 4 && (
           <div className="space-y-5 text-center">
-            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
-              <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-1">
-                Horário Pré-Reservado
-              </p>
-              <div className="text-3xl font-black text-white font-outfit">
-                {String(minutesRemaining).padStart(2, '0')}:{String(secondsRemaining).padStart(2, '0')}
-              </div>
-              <p className="text-[11px] text-zinc-400 mt-1">
-                Seu horário está bloqueado e seguro por 5 minutos enquanto conclui a confirmação.
-              </p>
-            </div>
-
-            {reservationFee > 0 ? (
-              <div className="space-y-4">
+            {countdownSeconds <= 0 ? (
+              <div className="p-6 rounded-2xl bg-red-950/40 border border-red-500/40 text-center space-y-4">
+                <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center text-xl mx-auto font-bold">
+                  !
+                </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Sinal de Reserva: R$ {reservationFee.toFixed(2)}</h3>
-                  <p className="text-xs text-zinc-400">
-                    O restante será pago diretamente no balcão da barbearia após o corte.
+                  <h3 className="text-base font-bold text-white">Tempo de Reserva Expirado</h3>
+                  <p className="text-xs text-zinc-300 mt-1">
+                    O prazo de 5 minutos para confirmação do sinal expirou e o horário foi liberado.
+                    Por favor, selecione seu horário novamente.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHoldAppointmentId(null)
+                    setCountdownSeconds(300)
+                    setSelectedSlot(null)
+                    setStep(3)
+                  }}
+                  className="w-full gold-button py-2.5 text-xs font-bold"
+                >
+                  Selecionar Novo Horário
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+                  <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-1">
+                    Horário Pré-Reservado
+                  </p>
+                  <div className="text-3xl font-black text-white font-outfit">
+                    {String(minutesRemaining).padStart(2, '0')}:{String(secondsRemaining).padStart(2, '0')}
+                  </div>
+                  <p className="text-[11px] text-zinc-400 mt-1">
+                    Seu horário está bloqueado e seguro por 5 minutos enquanto conclui a confirmação.
                   </p>
                 </div>
 
-                {pixData?.qrCodeImage && (
-                  <div className="max-w-[220px] mx-auto p-3 bg-white rounded-2xl shadow-xl">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={pixData.qrCodeImage} alt="QR Code Pix" className="w-full h-auto" />
+                {reservationFee > 0 ? (
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-base font-bold text-white">Sinal de Reserva: R$ {reservationFee.toFixed(2)}</h3>
+                      <p className="text-xs text-zinc-400">
+                        O restante será pago diretamente no balcão da barbearia após o corte.
+                      </p>
+                    </div>
+
+                    {pixData?.qrCodeImage && (
+                      <div className="max-w-[220px] mx-auto p-3 bg-white rounded-2xl shadow-xl">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={pixData.qrCodeImage} alt="QR Code Pix" className="w-full h-auto" />
+                      </div>
+                    )}
+
+                    {pixData?.qrCode && (
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(pixData.qrCode || '')
+                            alert('Código Pix Copia e Cola copiado com sucesso!')
+                          }}
+                          className="w-full py-2.5 px-4 rounded-xl border border-zinc-700 bg-zinc-900 text-xs font-bold text-zinc-200 hover:bg-zinc-800"
+                        >
+                          Copiar Código Pix Copia e Cola
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-6 bg-zinc-900/60 rounded-xl border border-zinc-800">
+                    <p className="text-emerald-400 font-bold text-sm">Reserva sem Taxa de Sinal!</p>
+                    <p className="text-xs text-zinc-400 mt-1">
+                      O valor total de R$ {totalPrice.toFixed(2)} será pago no balcão da barbearia.
+                    </p>
                   </div>
                 )}
 
-                {pixData?.qrCode && (
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(pixData.qrCode || '')
-                        alert('Código Pix Copia e Cola copiado com sucesso!')
-                      }}
-                      className="w-full py-2.5 px-4 rounded-xl border border-zinc-700 bg-zinc-900 text-xs font-bold text-zinc-200 hover:bg-zinc-800"
-                    >
-                      Copiar Código Pix Copia e Cola
-                    </button>
-                  </div>
+                {/* Status de Polling & Feedback */}
+                <div className="p-3 bg-zinc-900/80 border border-zinc-800 rounded-xl flex items-center justify-center gap-2 text-xs text-zinc-400">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span>Aguardando identificação do pagamento pelo banco...</span>
+                </div>
+
+                {paymentStatusMessage && (
+                  <p className="text-xs text-amber-300 font-medium bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl">
+                    {paymentStatusMessage}
+                  </p>
                 )}
-              </div>
-            ) : (
-              <div className="p-6 bg-zinc-900/60 rounded-xl border border-zinc-800">
-                <p className="text-emerald-400 font-bold text-sm">Reserva sem Taxa de Sinal!</p>
-                <p className="text-xs text-zinc-400 mt-1">
-                  O valor total de R$ {totalPrice.toFixed(2)} será pago no balcão da barbearia.
-                </p>
-              </div>
+
+                <button
+                  type="button"
+                  onClick={handleManualPaymentCheck}
+                  disabled={checkingPayment}
+                  className="w-full gold-button py-3 text-sm font-bold flex items-center justify-center gap-2"
+                >
+                  {checkingPayment ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-black" />
+                      <span>Verificando compensação do Pix...</span>
+                    </>
+                  ) : (
+                    <span>Já Realizei o Pagamento / Confirmar</span>
+                  )}
+                </button>
+              </>
             )}
-
-            <button
-              type="button"
-              onClick={() => setStep(5)}
-              className="w-full gold-button py-3 text-sm font-bold"
-            >
-              Já Realizei o Pagamento / Confirmar
-            </button>
           </div>
         )}
 

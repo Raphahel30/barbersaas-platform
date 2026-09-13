@@ -240,6 +240,40 @@ export async function createAppointmentHold(
     }
   }
 
+  // Execução via Função Transacional Atômica no Supabase
+  const rpcResult = await (admin as any).rpc('create_appointment_hold_atomic', {
+    p_tenant_id: input.tenantId,
+    p_barber_id: input.barberId,
+    p_service_ids: input.serviceIds,
+    p_client_name: clientId ? 'Cliente Cadastrado' : (guestName || 'Cliente'),
+    p_client_phone: clientId ? '' : (guestPhone || ''),
+    p_starts_at: selectedSlot.startsAt,
+    p_ends_at: selectedSlot.endsAt,
+    p_total_amount: fromCents(payableCents),
+    p_reservation_fee: fromCents(reservationFeeCents),
+    p_notes: input.notes?.trim() || null,
+  })
+
+  if (!rpcResult.error && rpcResult.data && (rpcResult.data as any).success) {
+    const resData = rpcResult.data as any
+    const isMonthly = Boolean(resData.is_monthly)
+    return {
+      success: true,
+      data: {
+        appointmentId: resData.appointment_id,
+        startsAt: selectedSlot.startsAt,
+        endsAt: selectedSlot.endsAt,
+        expiresAt: resData.hold_expires_at || new Date(Date.now() + 5 * 60_000).toISOString(),
+        remainingSeconds: 300,
+        totalAmount: isMonthly ? 0 : fromCents(payableCents),
+        reservationFee: isMonthly ? 0 : fromCents(reservationFeeCents),
+        vipDiscountAmount: fromCents(vipDiscountCents),
+        fidelityDiscountAmount: fromCents(fidelityDiscountCents),
+        isMonthlySubscriber: isMonthly,
+      } as any,
+    }
+  }
+
   const holdExpiresAt = new Date(Date.now() + 5 * 60_000)
   const appointmentResult = await admin.from('appointments').insert({
     tenant_id: input.tenantId,
@@ -432,3 +466,74 @@ export async function fetchAvailableSlots(
     return []
   }
 }
+
+/**
+ * Consulta em tempo real o status de pagamento e confirmação do agendamento no Supabase/Gateway.
+ */
+export async function checkAppointmentPaymentStatus(
+  appointmentId: string
+): Promise<{
+  success: boolean
+  status: string
+  isConfirmed: boolean
+  paymentStatus: string
+  message?: string
+}> {
+  if (!UUID_PATTERN.test(appointmentId)) {
+    return {
+      success: false,
+      status: 'invalid',
+      isConfirmed: false,
+      paymentStatus: 'invalid',
+      message: 'ID de agendamento inválido.',
+    }
+  }
+
+  try {
+    const admin = createAdminClient()
+    const { data: apt, error } = await admin
+      .from('appointments')
+      .select('id, status, payment_status, hold_expires_at, total_amount, reservation_fee, reservation_fee_paid')
+      .eq('id', appointmentId)
+      .single()
+
+    if (error || !apt) {
+      return {
+        success: false,
+        status: 'not_found',
+        isConfirmed: false,
+        paymentStatus: 'not_found',
+        message: 'Agendamento não localizado.',
+      }
+    }
+
+    const currentStatus = (apt.status as string) || ''
+    const isConfirmed =
+      currentStatus === 'confirmed' ||
+      currentStatus === 'scheduled' ||
+      currentStatus === 'arrived' ||
+      currentStatus === 'in_service' ||
+      currentStatus === 'completed'
+
+    const isExpired =
+      apt.status === 'hold' &&
+      apt.hold_expires_at &&
+      new Date(apt.hold_expires_at).getTime() < Date.now()
+
+    return {
+      success: true,
+      status: isExpired ? 'expired' : apt.status,
+      isConfirmed,
+      paymentStatus: apt.payment_status || 'pending',
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      status: 'error',
+      isConfirmed: false,
+      paymentStatus: 'error',
+      message: err?.message,
+    }
+  }
+}
+
