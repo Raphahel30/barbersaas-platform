@@ -75,11 +75,9 @@ test.describe('Fluxo Crítico de Agendamento Transacional e Pix', () => {
     expect(service).not.toBeNull()
 
     // 2. Criação do hold atômico
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 2)
-    tomorrow.setHours(10, 0, 0, 0)
-    const startsAt = tomorrow.toISOString()
-    const endsAt = new Date(tomorrow.getTime() + 30 * 60000).toISOString()
+    const testDate = new Date(Date.now() + (Math.floor(Math.random() * 500) + 100) * 3600000)
+    const startsAt = testDate.toISOString()
+    const endsAt = new Date(testDate.getTime() + 30 * 60000).toISOString()
 
     const { data: rpcRes, error: rpcError } = await (admin as any).rpc(
       'create_appointment_hold_atomic',
@@ -94,6 +92,7 @@ test.describe('Fluxo Crítico de Agendamento Transacional e Pix', () => {
         p_total_amount: Number(service!.price),
         p_reservation_fee: Number(service!.reservation_fee),
         p_notes: 'E2E Hold Test',
+        p_tracking_token_hash: 'e2e_test_token_hash_0001',
       },
     )
 
@@ -143,9 +142,7 @@ test.describe('Fluxo Crítico de Agendamento Transacional e Pix', () => {
       .limit(1)
       .single()
 
-    const futureDate = new Date()
-    futureDate.setDate(futureDate.getDate() + 3)
-    futureDate.setHours(11, 0, 0, 0)
+    const futureDate = new Date(Date.now() + (Math.floor(Math.random() * 500) + 600) * 3600000)
     const startsAt = futureDate.toISOString()
     const endsAt = new Date(futureDate.getTime() + 30 * 60000).toISOString()
 
@@ -160,6 +157,7 @@ test.describe('Fluxo Crítico de Agendamento Transacional e Pix', () => {
       p_total_amount: Number(service!.price),
       p_reservation_fee: Number(service!.reservation_fee),
       p_notes: 'E2E Pix Test',
+      p_tracking_token_hash: 'e2e_test_token_hash_0002',
     })
 
     const appointmentId = rpcRes.appointment_id
@@ -241,9 +239,7 @@ test.describe('Fluxo Crítico de Agendamento Transacional e Pix', () => {
     expect(subError).toBeNull()
     expect(sub).not.toBeNull()
 
-    const futureDate = new Date()
-    futureDate.setDate(futureDate.getDate() + 4)
-    futureDate.setHours(14, 0, 0, 0)
+    const futureDate = new Date(Date.now() + (Math.floor(Math.random() * 500) + 1200) * 3600000)
     const startsAt = futureDate.toISOString()
     const endsAt = new Date(futureDate.getTime() + 30 * 60000).toISOString()
 
@@ -261,13 +257,14 @@ test.describe('Fluxo Crítico de Agendamento Transacional e Pix', () => {
         p_total_amount: Number(service!.price),
         p_reservation_fee: Number(service!.reservation_fee),
         p_notes: 'E2E Mensalista Test',
+        p_tracking_token_hash: 'e2e_test_token_hash_0003',
       },
     )
 
     expect(rpcError).toBeNull()
     expect(rpcRes.success).toBe(true)
     expect(rpcRes.is_monthly).toBe(true)
-    expect(rpcRes.requires_pix).toBe(false)
+    expect(rpcRes.requires_payment).toBe(false)
 
     // 3. Verifica se o corte foi debitado (de 3 para 2)
     const { data: updatedSub } = await admin
@@ -308,9 +305,7 @@ test.describe('Fluxo Crítico de Agendamento Transacional e Pix', () => {
       .limit(1)
       .single()
 
-    const futureDate = new Date()
-    futureDate.setDate(futureDate.getDate() + 5)
-    futureDate.setHours(16, 0, 0, 0)
+    const futureDate = new Date(Date.now() + (Math.floor(Math.random() * 500) + 1800) * 3600000)
     const startsAt = futureDate.toISOString()
     const endsAt = new Date(futureDate.getTime() + 30 * 60000).toISOString()
 
@@ -326,6 +321,7 @@ test.describe('Fluxo Crítico de Agendamento Transacional e Pix', () => {
       p_total_amount: Number(service!.price),
       p_reservation_fee: Number(service!.reservation_fee),
       p_notes: 'E2E Slot 1',
+      p_tracking_token_hash: 'e2e_test_token_hash_0004a',
     })
 
     expect(res1.success).toBe(true)
@@ -342,6 +338,7 @@ test.describe('Fluxo Crítico de Agendamento Transacional e Pix', () => {
       p_total_amount: Number(service!.price),
       p_reservation_fee: Number(service!.reservation_fee),
       p_notes: 'E2E Slot 2',
+      p_tracking_token_hash: 'e2e_test_token_hash_0004b',
     })
 
     expect(res2.success).toBe(false)

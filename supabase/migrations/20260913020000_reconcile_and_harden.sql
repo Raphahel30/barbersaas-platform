@@ -64,7 +64,7 @@ BEGIN
     RETURN pg_catalog.jsonb_build_object('success', false, 'error', 'Horário de término inválido.');
   END IF;
 
-  IF p_client_name IS NOT NULL AND pg_catalog.length(pg_catalog.trim(p_client_name)) > 150 THEN
+  IF p_client_name IS NOT NULL AND pg_catalog.length(pg_catalog.btrim(p_client_name)) > 150 THEN
     RETURN pg_catalog.jsonb_build_object('success', false, 'error', 'Nome do cliente excede limite.');
   END IF;
 
@@ -102,7 +102,7 @@ BEGIN
   END IF;
 
   -- Normaliza telefone
-  v_clean_phone := pg_catalog.regexp_replace(pg_catalog.coalesce(p_client_phone, ''), '\D', '', 'g');
+  v_clean_phone := pg_catalog.regexp_replace(COALESCE(p_client_phone, ''), '\D', '', 'g');
   IF pg_catalog.length(v_clean_phone) > 11 AND pg_catalog.starts_with(v_clean_phone, '55') THEN
     v_clean_phone := pg_catalog.substring(v_clean_phone, 3);
   END IF;
@@ -198,7 +198,7 @@ BEGIN
     v_status,
     v_payment_status,
     CASE 
-      WHEN v_is_monthly THEN pg_catalog.coalesce(p_notes || ' ', '') || '[MENSALISTA VIP - ISENTO DE SINAL]'
+      WHEN v_is_monthly THEN COALESCE(p_notes || ' ', '') || '[MENSALISTA VIP - ISENTO DE SINAL]'
       ELSE p_notes 
     END,
     p_tracking_token_hash,
@@ -222,7 +222,7 @@ BEGIN
       v_appointment_id,
       v_service.id,
       v_service.name,
-      v_service.duration_minutes + pg_catalog.coalesce(v_service.cleanup_minutes, 0),
+      v_service.duration_minutes + COALESCE(v_service.cleanup_minutes, 0),
       v_service.price
     );
   END LOOP;
