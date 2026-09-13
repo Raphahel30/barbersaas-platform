@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     // 1. Busca agendamentos em 'hold' que já ultrapassaram o tempo limite
     const { data: expiredHolds, error: selectError } = await admin
       .from('appointments')
-      .select('id, tenant_id, hold_expires_at')
+      .select('id, tenant_id, guest_phone, notes, hold_expires_at')
       .eq('status', 'hold')
       .lte('hold_expires_at', nowIso)
 
@@ -49,7 +49,36 @@ export async function GET(req: NextRequest) {
 
     const expiredIds = expiredHolds.map((h) => h.id)
 
-    // 2. Atualiza status para 'cancelled', liberando o slot imediatamente para o motor de busca
+    // 2. Estorno atômico de cortes para mensalistas com hold não confirmado
+    for (const hold of expiredHolds) {
+      const isMonthly = hold.notes?.includes('[MENSALISTA VIP]')
+      if (isMonthly && hold.guest_phone) {
+        const cleanPhone = hold.guest_phone.replace(/\D/g, '')
+        try {
+          const { data: sub } = await admin
+            .from('monthly_subscriptions')
+            .select('id, cuts_remaining')
+            .eq('tenant_id', hold.tenant_id)
+            .ilike('client_phone', `%${cleanPhone.slice(-8)}%`)
+            .eq('status', 'active')
+            .limit(1)
+            .maybeSingle()
+
+          if (sub) {
+            await admin
+              .from('monthly_subscriptions')
+              .update({
+                cuts_remaining: (sub.cuts_remaining || 0) + 1,
+              })
+              .eq('id', sub.id)
+          }
+        } catch (subErr) {
+          console.error('[Cron Expire Holds] Erro ao estornar corte de mensalista:', subErr)
+        }
+      }
+    }
+
+    // 3. Atualiza status para 'cancelled', liberando o slot imediatamente para o motor de busca
     const { error: updateError } = await admin
       .from('appointments')
       .update({

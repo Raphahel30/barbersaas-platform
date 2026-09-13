@@ -1,5 +1,6 @@
 import 'server-only'
 
+import webpush from 'web-push'
 import { createAdminClient } from '@/utils/supabase/admin'
 
 export interface PushSubscriptionKeys {
@@ -21,6 +22,18 @@ export interface WebPushPayload {
   url?: string
   icon?: string
   badge?: string
+}
+
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:suporte@seusaas.com.br'
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY
+
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  try {
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+  } catch (err) {
+    console.warn('Falha ao configurar VAPID details:', err)
+  }
 }
 
 /**
@@ -59,11 +72,49 @@ export async function savePushSubscription(
 }
 
 /**
- * Remove uma inscrição push (ex: quando o navegador cancela a permissão ou endpoint retorna 410 Gone).
+ * Remove uma inscrição push (ex: quando o navegador cancela a permissão ou endpoint retorna 410 Gone / 404).
  */
 export async function removePushSubscription(endpoint: string): Promise<void> {
-  const admin = createAdminClient()
-  await admin.from('push_subscriptions').delete().eq('endpoint', endpoint)
+  try {
+    const admin = createAdminClient()
+    await admin.from('push_subscriptions').delete().eq('endpoint', endpoint)
+  } catch (err) {
+    console.error('Erro ao deletar push subscription expirada:', err)
+  }
+}
+
+/**
+ * Envia notificação criptografada nativa usando a biblioteca oficial web-push.
+ */
+export async function sendWebPushNotification(
+  subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
+  payload: WebPushPayload,
+): Promise<boolean> {
+  try {
+    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+      console.warn('[WebPush] Chaves VAPID não configuradas nas variáveis de ambiente.')
+      return false
+    }
+
+    const pushSub = {
+      endpoint: subscription.endpoint,
+      keys: {
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth,
+      },
+    }
+
+    await webpush.sendNotification(pushSub, JSON.stringify(payload))
+    return true
+  } catch (error: any) {
+    if (error?.statusCode === 404 || error?.statusCode === 410) {
+      // Inscrição inválida ou revogada pelo push service do navegador
+      await removePushSubscription(subscription.endpoint)
+    } else {
+      console.error('[WebPush Error] Falha no envio da notificação:', error?.message || error)
+    }
+    return false
+  }
 }
 
 /**
@@ -90,29 +141,20 @@ export async function dispatchPushToUser(
   let failed = 0
 
   for (const sub of subscriptions) {
-    try {
-      // Disparo simulado e compatível com WebPush VAPID
-      const response = await fetch(sub.endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          TTL: '86400',
+    const success = await sendWebPushNotification(
+      {
+        endpoint: sub.endpoint,
+        keys: {
+          p256dh: sub.p256dh,
+          auth: sub.auth,
         },
-        body: JSON.stringify(payload),
-      })
+      },
+      payload,
+    )
 
-      if (response.status === 410 || response.status === 404) {
-        // Inscrição expirada pelo navegador
-        await removePushSubscription(sub.endpoint)
-        failed++
-      } else if (response.ok) {
-        sent++
-      } else {
-        // Alguns endpoints exigem criptografia VAPID direta
-        sent++
-      }
-    } catch {
-      // Se offline ou falha de rede temporária
+    if (success) {
+      sent++
+    } else {
       failed++
     }
   }

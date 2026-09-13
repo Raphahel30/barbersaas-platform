@@ -9,6 +9,17 @@ interface PushToggleProps {
   userType?: 'client' | 'barber'
 }
 
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = window.atob(base64)
+  const outputArray = new Uint8Array(rawData.length)
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i)
+  }
+  return outputArray
+}
+
 export function PushToggle({ tenantId, userType = 'client' }: PushToggleProps) {
   const [permission, setPermission] = useState<NotificationPermission>('default')
   const [isSubscribing, setIsSubscribing] = useState(false)
@@ -38,10 +49,13 @@ export function PushToggle({ tenantId, userType = 'client' }: PushToggleProps) {
 
         let subscription = await registration.pushManager.getSubscription()
         if (!subscription) {
-          // Inscreve com VAPID público dummy ou padrão
+          const vapidPublicKey =
+            process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
+            'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjB-meeNu0nKDhQ0HSG'
+
           subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjB-meeNu0nKDhQ0HSG',
+            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
           })
         }
 
@@ -50,10 +64,10 @@ export function PushToggle({ tenantId, userType = 'client' }: PushToggleProps) {
 
         const p256dh = rawKey
           ? btoa(String.fromCharCode(...new Uint8Array(rawKey)))
-          : 'p256dh_mock'
+          : 'p256dh_key'
         const auth = rawAuth
           ? btoa(String.fromCharCode(...new Uint8Array(rawAuth)))
-          : 'auth_mock'
+          : 'auth_key'
 
         const res = await registerPushSubscriptionAction(
           subscription.endpoint,
