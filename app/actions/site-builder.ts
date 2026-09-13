@@ -4,9 +4,78 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { DEFAULT_SITE_CONFIG, type TenantSiteConfigData } from '@/lib/builder/defaults'
-import { requireTenantOwner } from '@/lib/auth/guards'
+import { requireTenantOwner, requireTenantStaff } from '@/lib/auth/guards'
 
 export type { TenantSiteConfigData }
+
+export async function uploadTenantAsset(formData: FormData): Promise<{
+  success: boolean
+  url?: string
+  error?: string
+}> {
+  try {
+    const file = formData.get('file') as File | null
+    const tenantId = formData.get('tenantId') as string | null
+    const type = (formData.get('type') as string | null) || 'asset'
+
+    if (!file || !tenantId) {
+      return { success: false, error: 'Arquivo ou identificador do estabelecimento ausente.' }
+    }
+
+    // 1. Validação de autorização do tenant
+    await requireTenantStaff(tenantId)
+
+    // 2. Validação de tamanho (máximo 4MB)
+    const MAX_SIZE = 4 * 1024 * 1024 // 4MB
+    if (file.size > MAX_SIZE) {
+      return { success: false, error: 'O tamanho da imagem não pode ultrapassar 4MB.' }
+    }
+
+    // 3. Validação de tipo MIME
+    const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
+    if (!allowedMimeTypes.includes(file.type.toLowerCase())) {
+      return { success: false, error: 'Formato inválido. Envie apenas imagens PNG, JPEG ou WEBP.' }
+    }
+
+    // 4. Extensão e caminho de armazenamento
+    let ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+    if (file.type === 'image/png') ext = 'png'
+    else if (file.type === 'image/webp') ext = 'webp'
+    else if (file.type === 'image/jpeg' || file.type === 'image/jpg') ext = 'jpg'
+
+    const timestamp = Date.now()
+    const sanitizedType = type.replace(/[^a-zA-Z0-9_-]/g, '')
+    const filePath = `tenants/${tenantId}/${sanitizedType}_${timestamp}.${ext}`
+
+    const admin = createAdminClient()
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    const { error: uploadError } = await admin.storage
+      .from('barbershop-media')
+      .upload(filePath, buffer, {
+        contentType: file.type,
+        upsert: true,
+      })
+
+    if (uploadError) {
+      console.error('Erro no upload para barbershop-media:', uploadError)
+      return { success: false, error: `Falha ao salvar imagem: ${uploadError.message}` }
+    }
+
+    const { data: publicUrlData } = admin.storage
+      .from('barbershop-media')
+      .getPublicUrl(filePath)
+
+    return {
+      success: true,
+      url: publicUrlData.publicUrl,
+    }
+  } catch (err: any) {
+    console.error('uploadTenantAsset error:', err)
+    return { success: false, error: err?.message || 'Erro inesperado no upload de imagem.' }
+  }
+}
 
 export async function getSiteConfig(tenantSlugOrId: string): Promise<{
   success: boolean
@@ -126,6 +195,10 @@ export async function saveSiteConfig(
 
     const admin = createAdminClient()
 
+    const galleryPhotos = Array.isArray(data.gallery_photos)
+      ? data.gallery_photos.slice(0, 8)
+      : DEFAULT_SITE_CONFIG.gallery_photos
+
     const payload = {
       tenant_id: tenantId,
       logo_url: data.logo_url ?? null,
@@ -138,7 +211,7 @@ export async function saveSiteConfig(
       primary_color: data.primary_color ?? DEFAULT_SITE_CONFIG.primary_color,
       background_color: data.background_color ?? DEFAULT_SITE_CONFIG.background_color,
       card_color: data.card_color ?? DEFAULT_SITE_CONFIG.card_color,
-      gallery_photos: data.gallery_photos ?? DEFAULT_SITE_CONFIG.gallery_photos,
+      gallery_photos: galleryPhotos,
       amenities: data.amenities ?? DEFAULT_SITE_CONFIG.amenities,
       sections_visibility: data.sections_visibility ?? DEFAULT_SITE_CONFIG.sections_visibility,
       updated_at: new Date().toISOString(),

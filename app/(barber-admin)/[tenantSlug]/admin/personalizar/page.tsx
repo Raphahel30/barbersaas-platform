@@ -28,8 +28,14 @@ import {
   ShieldCheck,
   Flame,
   Info,
+  Upload,
 } from 'lucide-react'
-import { getSiteConfig, saveSiteConfig, type TenantSiteConfigData } from '@/app/actions/site-builder'
+import {
+  getSiteConfig,
+  saveSiteConfig,
+  uploadTenantAsset,
+  type TenantSiteConfigData,
+} from '@/app/actions/site-builder'
 import { DEFAULT_SITE_CONFIG } from '@/lib/builder/defaults'
 
 // Presets de Cores em 1 Clique
@@ -245,6 +251,69 @@ export default function SiteBuilderCustomizerPage() {
     }
   }
 
+  // Estado de upload de arquivos
+  const [uploadingField, setUploadingField] = useState<'logo' | 'banner' | 'gallery' | null>(null)
+
+  const handleFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    target: 'logo' | 'banner' | 'gallery'
+  ) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!tenantId) {
+      setFeedback({ type: 'error', message: 'Barbearia não identificada para upload.' })
+      e.target.value = ''
+      return
+    }
+
+    if (target === 'gallery' && config.gallery_photos.length >= 8) {
+      setFeedback({ type: 'error', message: 'Limite máximo de 8 fotos na galeria já foi atingido.' })
+      e.target.value = ''
+      return
+    }
+
+    if (file.size > 4 * 1024 * 1024) {
+      setFeedback({ type: 'error', message: 'O arquivo não pode exceder o limite de 4MB.' })
+      e.target.value = ''
+      return
+    }
+
+    setUploadingField(target)
+    setFeedback(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('tenantId', tenantId)
+      formData.append('type', target)
+
+      const res = await uploadTenantAsset(formData)
+      if (res.success && res.url) {
+        if (target === 'logo') {
+          setConfig((prev) => ({ ...prev, logo_url: res.url! }))
+          setFeedback({ type: 'success', message: 'Logotipo enviado com sucesso para o Supabase Storage!' })
+        } else if (target === 'banner') {
+          setConfig((prev) => ({ ...prev, banner_url: res.url! }))
+          setFeedback({ type: 'success', message: 'Banner de capa enviado com sucesso!' })
+        } else if (target === 'gallery') {
+          setConfig((prev) => ({
+            ...prev,
+            gallery_photos: [...prev.gallery_photos, res.url!].slice(0, 8),
+          }))
+          setFeedback({ type: 'success', message: 'Foto adicionada à galeria com sucesso!' })
+        }
+      } else {
+        setFeedback({ type: 'error', message: res.error || 'Falha ao realizar upload da imagem.' })
+      }
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err?.message || 'Erro inesperado no upload da imagem.' })
+    } finally {
+      setUploadingField(null)
+      e.target.value = ''
+    }
+  }
+
   // Helper de paletas rápidas
   const applyPalette = (palette: (typeof COLOR_PRESETS)[0]) => {
     setConfig((prev) => ({
@@ -439,36 +508,132 @@ export default function SiteBuilderCustomizerPage() {
             {/* ABA 1: IDENTIDADE & TEXTOS */}
             {activeTab === 'identity' && (
               <div className="space-y-5">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                    URL do Logotipo da Barbearia
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="https://exemplo.com/minha-logo.png"
-                    value={config.logo_url || ''}
-                    onChange={(e) => setConfig({ ...config, logo_url: e.target.value })}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-xs sm:text-sm text-zinc-100 focus:border-amber-500 focus:outline-none"
-                  />
-                  <p className="text-[11px] text-zinc-500">
-                    Insira o link de uma imagem transparente (.PNG ou .WEBP). Se vazio, exibiremos o monograma inicial.
-                  </p>
+                {/* LOGO */}
+                <div className="space-y-2 p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-amber-500" />
+                      Logotipo da Barbearia
+                    </label>
+                    <span className="text-[10px] text-zinc-500 font-medium">PNG, JPG ou WEBP (máx. 4MB)</span>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-3 items-center">
+                    {config.logo_url ? (
+                      <div className="w-16 h-16 rounded-xl border border-zinc-700 bg-zinc-950 p-1 flex items-center justify-center relative group shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={config.logo_url}
+                          alt="Logo Preview"
+                          className="max-h-full max-w-full object-contain rounded-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setConfig({ ...config, logo_url: null })}
+                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-600 rounded-full text-white flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Remover Logo"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 rounded-xl border border-dashed border-zinc-700 bg-zinc-950/50 flex items-center justify-center text-zinc-600 text-xs shrink-0 font-bold">
+                        SEM LOGO
+                      </div>
+                    )}
+
+                    <div className="flex-1 w-full space-y-2">
+                      <div className="flex gap-2">
+                        <label className="flex-1 cursor-pointer">
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg,image/webp"
+                            className="hidden"
+                            disabled={uploadingField === 'logo'}
+                            onChange={(e) => handleFileUpload(e, 'logo')}
+                          />
+                          <div className="w-full bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700 rounded-xl px-3 py-2 text-xs font-bold flex items-center justify-center gap-2 transition-all">
+                            {uploadingField === 'logo' ? (
+                              <>
+                                <div className="w-3.5 h-3.5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                                <span>Enviando...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Upload de Imagem</span>
+                              </>
+                            )}
+                          </div>
+                        </label>
+                      </div>
+
+                      <input
+                        type="url"
+                        placeholder="Ou cole a URL direta da logo..."
+                        value={config.logo_url || ''}
+                        onChange={(e) => setConfig({ ...config, logo_url: e.target.value })}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 focus:border-amber-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                    URL da Imagem de Capa (Banner Hero)
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="https://images.unsplash.com/photo-..."
-                    value={config.banner_url || ''}
-                    onChange={(e) => setConfig({ ...config, banner_url: e.target.value })}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-xs sm:text-sm text-zinc-100 focus:border-amber-500 focus:outline-none"
-                  />
-                  <p className="text-[11px] text-zinc-500">
-                    Foto de fundo do topo da página. Recomendado: imagem de alta resolução em proporção 16:9.
-                  </p>
+                {/* BANNER HERO */}
+                <div className="space-y-2 p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                      <Layout className="w-3.5 h-3.5 text-amber-500" />
+                      Imagem de Capa (Banner Hero)
+                    </label>
+                    <span className="text-[10px] text-zinc-500 font-medium">Recomendado: 16:9 em alta resolução</span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {config.banner_url && (
+                      <div className="w-full h-28 rounded-xl border border-zinc-700 bg-zinc-950 overflow-hidden relative group">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={config.banner_url}
+                          alt="Banner Preview"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <label className="flex-1 cursor-pointer">
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg,image/webp"
+                          className="hidden"
+                          disabled={uploadingField === 'banner'}
+                          onChange={(e) => handleFileUpload(e, 'banner')}
+                        />
+                        <div className="w-full bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700 rounded-xl px-3 py-2 text-xs font-bold flex items-center justify-center gap-2 transition-all">
+                          {uploadingField === 'banner' ? (
+                            <>
+                              <div className="w-3.5 h-3.5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                              <span>Enviando Banner...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-3.5 h-3.5 text-amber-400" />
+                              <span>Upload de Imagem de Capa</span>
+                            </>
+                          )}
+                        </div>
+                      </label>
+                    </div>
+
+                    <input
+                      type="url"
+                      placeholder="Ou cole a URL da imagem de capa..."
+                      value={config.banner_url || ''}
+                      onChange={(e) => setConfig({ ...config, banner_url: e.target.value })}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -701,31 +866,61 @@ export default function SiteBuilderCustomizerPage() {
             {/* ABA 5: GALERIA DE FOTOS */}
             {activeTab === 'gallery' && (
               <div className="space-y-5">
-                <div className="space-y-2">
+                <div className="space-y-3 p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                      Adicionar Foto à Galeria ({config.gallery_photos.length}/8)
+                    <label className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-amber-500" />
+                      Fotos da Barbearia ({config.gallery_photos.length}/8)
                     </label>
-                    <span className="text-[11px] text-zinc-500">Máximo 8 imagens</span>
+                    <span className={`text-[11px] font-bold ${config.gallery_photos.length >= 8 ? 'text-amber-400' : 'text-zinc-500'}`}>
+                      {config.gallery_photos.length >= 8 ? 'Limite de 8 fotos atingido' : `Restam ${8 - config.gallery_photos.length} vagas`}
+                    </span>
                   </div>
 
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      placeholder="https://exemplo.com/corte-degrade.jpg"
-                      value={newPhotoUrl}
-                      onChange={(e) => setNewPhotoUrl(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addGalleryPhoto())}
-                      className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-100 focus:border-amber-500 focus:outline-none"
-                    />
-                    <button
-                      onClick={addGalleryPhoto}
-                      disabled={config.gallery_photos.length >= 8}
-                      className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-zinc-950 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Adicionar
-                    </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label className={`cursor-pointer ${config.gallery_photos.length >= 8 ? 'opacity-40 pointer-events-none' : ''}`}>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/jpg,image/webp"
+                        className="hidden"
+                        disabled={uploadingField === 'gallery' || config.gallery_photos.length >= 8}
+                        onChange={(e) => handleFileUpload(e, 'gallery')}
+                      />
+                      <div className="w-full h-full bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700 rounded-xl px-4 py-2.5 text-xs font-bold flex items-center justify-center gap-2 transition-all">
+                        {uploadingField === 'gallery' ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                            <span>Enviando Foto...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Upload do Computador/Celular</span>
+                          </>
+                        )}
+                      </div>
+                    </label>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        placeholder="Ou cole o link da foto..."
+                        value={newPhotoUrl}
+                        disabled={config.gallery_photos.length >= 8}
+                        onChange={(e) => setNewPhotoUrl(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addGalleryPhoto())}
+                        className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:border-amber-500 focus:outline-none disabled:opacity-50"
+                      />
+                      <button
+                        type="button"
+                        onClick={addGalleryPhoto}
+                        disabled={config.gallery_photos.length >= 8 || !newPhotoUrl.trim()}
+                        className="px-3 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-zinc-950 text-xs font-bold rounded-xl transition-all flex items-center gap-1 shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add
+                      </button>
+                    </div>
                   </div>
                 </div>
 

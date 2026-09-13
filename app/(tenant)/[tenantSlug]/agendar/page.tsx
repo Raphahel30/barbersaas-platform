@@ -92,16 +92,20 @@ export default function BookingFunnelPage() {
       if (!tenantSlug) return
       try {
         const res = await fetch(`/api/tenant/resolve?slug=${tenantSlug}`)
+        if (!res.ok) {
+          throw new Error('Barbearia não encontrada ou inativa')
+        }
         const data = await res.json()
         if (data.id) {
           setTenantId(data.id)
           setTenantName(data.name || 'Barbearia')
           setServices(data.services || [])
           setBarbers(data.barbers || [])
+        } else {
+          throw new Error('Dados da barbearia incompletos')
         }
-      } catch {
-        // Fallback demo caso rota api direta não esteja configurada
-        setTenantName('Barbearia')
+      } catch (err: any) {
+        setErrorMessage(err?.message || 'Barbearia indisponível no momento.')
       } finally {
         setLoadingInit(false)
       }
@@ -303,6 +307,35 @@ export default function BookingFunnelPage() {
     } finally {
       setJoiningWaitlist(false)
     }
+  }
+
+  if (loadingInit) {
+    return (
+      <div className="min-h-screen max-w-lg mx-auto bg-zinc-950/90 border-x border-zinc-900 shadow-2xl flex flex-col justify-center items-center p-6 text-zinc-100">
+        <div className="w-12 h-12 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mb-4" />
+        <p className="text-sm font-medium text-zinc-400">Carregando serviços e horários...</p>
+      </div>
+    )
+  }
+
+  if (!tenantId) {
+    return (
+      <div className="min-h-screen max-w-lg mx-auto bg-zinc-950/90 border-x border-zinc-900 shadow-2xl flex flex-col justify-center items-center p-6 text-center text-zinc-100">
+        <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-2xl mb-4">
+          ⚠️
+        </div>
+        <h1 className="text-lg font-bold text-white mb-2">Barbearia Não Encontrada</h1>
+        <p className="text-sm text-zinc-400 mb-6">
+          Não conseguimos localizar este estabelecimento ou a página está temporariamente indisponível.
+        </p>
+        <Link
+          href={`/${tenantSlug}`}
+          className="px-5 py-2.5 rounded-xl gold-gradient-bg text-black font-semibold text-xs transition-transform active:scale-95"
+        >
+          Voltar ao Início
+        </Link>
+      </div>
+    )
   }
 
   return (
