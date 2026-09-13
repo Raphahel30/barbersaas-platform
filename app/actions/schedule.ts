@@ -8,6 +8,8 @@ import type { Database } from '@/types/database.types'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { createClient } from '@/utils/supabase/server'
 
+import { requireTenantStaff } from '@/lib/auth/guards'
+
 type AppointmentStatus = Database['public']['Enums']['appointment_status']
 type PaymentMethod = Database['public']['Enums']['payment_method']
 
@@ -35,6 +37,14 @@ export async function getDailyAppointments(
 ) {
   if (!UUID_PATTERN.test(tenantId)) {
     throw new Error('Barbearia inválida.')
+  }
+
+  const authUser = await requireTenantStaff(tenantId)
+
+  // Se o usuário for barbeiro comum (não dono/admin), restringir à sua própria agenda se não especificado
+  let effectiveBarberId = barberId
+  if (authUser.profile.role === 'barber' && !barberId) {
+    effectiveBarberId = authUser.userId
   }
 
   const from = `${dateStr}T00:00:00.000Z`
@@ -71,8 +81,8 @@ export async function getDailyAppointments(
     .lte('starts_at', to)
     .order('starts_at', { ascending: true })
 
-  if (barberId && UUID_PATTERN.test(barberId)) {
-    query = query.eq('barber_id', barberId)
+  if (effectiveBarberId && UUID_PATTERN.test(effectiveBarberId)) {
+    query = query.eq('barber_id', effectiveBarberId)
   }
 
   const { data, error } = await query
@@ -85,6 +95,8 @@ export async function getDailyAppointments(
 
 export async function getBarbersList(tenantId: string) {
   if (!UUID_PATTERN.test(tenantId)) return []
+
+  await requireTenantStaff(tenantId)
 
   const admin = createAdminClient()
   const { data } = await admin
@@ -118,17 +130,48 @@ export async function quickWalkInAppointment(input: QuickWalkInInput) {
     return { success: false, message: 'Selecione ao menos um serviço.' }
   }
 
+  // 1. Autorização interna obrigatória: usuário autenticado e membro da equipe deste tenant
+  let authUser
+  try {
+    authUser = await requireTenantStaff(input.tenantId)
+  } catch (authErr) {
+    return { 
+      success: false, 
+      message: authErr instanceof Error ? authErr.message : 'Acesso não autorizado para esta barbearia.' 
+    }
+  }
+
+  // Se o operador for barbeiro comum, só pode lançar atendimento para si mesmo
+  const isOwnerOrAdmin = authUser.email === 'rafaelcassu@gmail.com' || authUser.profile.role === 'owner' || authUser.profile.role === 'super_admin'
+  if (!isOwnerOrAdmin && authUser.profile.role === 'barber' && authUser.userId !== input.barberId) {
+    return { success: false, message: 'Barbeiros só podem registrar atendimentos avulsos para si próprios.' }
+  }
+
   const admin = createAdminClient()
 
-  // Carrega serviços
+  // 2. Validação rigorosa de que o barberId pertence ao mesmo tenant, é ativo e possui role barber/owner
+  const { data: barberProfile, error: barberError } = await admin
+    .from('profiles')
+    .select('id, is_active, role, tenant_id')
+    .eq('id', input.barberId)
+    .eq('tenant_id', input.tenantId)
+    .in('role', ['barber', 'owner'])
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (barberError || !barberProfile) {
+    return { success: false, message: 'Profissional inválido, inativo ou não vinculado a esta unidade.' }
+  }
+
+  // 3. Carrega serviços do tenant
   const { data: services, error: servError } = await admin
     .from('services')
     .select('id, name, price, duration_minutes, cleanup_minutes')
     .eq('tenant_id', input.tenantId)
     .in('id', input.serviceIds)
 
-  if (servError || !services || services.length === 0) {
-    return { success: false, message: 'Serviços não encontrados.' }
+  if (servError || !services || services.length === 0 || services.length !== input.serviceIds.length) {
+    return { success: false, message: 'Um ou mais serviços são inválidos ou não pertencem a esta unidade.' }
   }
 
   const totalAmount = services.reduce((acc, s) => acc + Number(s.price), 0)

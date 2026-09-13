@@ -255,9 +255,27 @@ export async function createWalkInAppointment(
       .select('id')
       .eq('tenant_id', tenantId)
       .in('role', ['barber', 'owner'])
+      .eq('is_active', true)
       .limit(1)
       .maybeSingle()
-    barberId = defaultBarber?.id || '00000000-0000-0000-0000-000000000000'
+    if (!defaultBarber) {
+      return { success: false, message: 'Nenhum profissional ativo encontrado para esta unidade.' }
+    }
+    barberId = defaultBarber.id
+  } else {
+    // Validação estrita: o barbeiro deve pertencer ao mesmo tenant, estar ativo e ter role barber ou owner
+    const { data: validBarber } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('id', barberId)
+      .eq('tenant_id', tenantId)
+      .in('role', ['barber', 'owner'])
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (!validBarber) {
+      return { success: false, message: 'Profissional inválido, inativo ou não vinculado a esta unidade.' }
+    }
   }
 
   const paymentMethodMap: Record<string, 'pix_tenant' | 'card_machine' | 'cash'> = {
@@ -437,9 +455,27 @@ export async function blockScheduleSlot(
       .select('id')
       .eq('tenant_id', tenantId)
       .in('role', ['barber', 'owner'])
+      .eq('is_active', true)
       .limit(1)
       .maybeSingle()
-    barberId = defaultBarber?.id || '00000000-0000-0000-0000-000000000000'
+    if (!defaultBarber) {
+      return { success: false, message: 'Nenhum profissional ativo encontrado para esta unidade.' }
+    }
+    barberId = defaultBarber.id
+  } else {
+    // Validação estrita: o barbeiro deve pertencer ao mesmo tenant, estar ativo e ter role barber ou owner
+    const { data: validBarber } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('id', barberId)
+      .eq('tenant_id', tenantId)
+      .in('role', ['barber', 'owner'])
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (!validBarber) {
+      return { success: false, message: 'Profissional inválido, inativo ou não vinculado a esta unidade.' }
+    }
   }
 
   const { error } = await admin.from('appointments').insert({
