@@ -104,7 +104,7 @@ BEGIN
   -- Normaliza telefone
   v_clean_phone := pg_catalog.regexp_replace(pg_catalog.coalesce(p_client_phone, ''), '\D', '', 'g');
   IF pg_catalog.length(v_clean_phone) > 11 AND pg_catalog.starts_with(v_clean_phone, '55') THEN
-    v_clean_phone := pg_catalog.substring(v_clean_phone from 3);
+    v_clean_phone := pg_catalog.substring(v_clean_phone, 3);
   END IF;
 
   -- 2. Verifica choque de horários (Hold ativo não expirado ou confirmado/agendado)
