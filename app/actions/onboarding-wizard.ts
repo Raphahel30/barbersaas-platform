@@ -143,6 +143,10 @@ export async function createQuickBarbershop(data: OnboardingWizardInput): Promis
         slug: cleanSlug,
         status: 'trial',
         address: addressData,
+        document_number: docNumber,
+        owner_name: data.ownerName,
+        address_city: data.city,
+        address_state: data.state || 'SP',
         gateway_credentials: gatewayCredentials,
       })
       .select('id')
@@ -151,12 +155,24 @@ export async function createQuickBarbershop(data: OnboardingWizardInput): Promis
     if (tenantError) throw tenantError
     tenantId = tenant.id
 
-    // 7. Criar Tenant Settings
-    await admin.from('tenant_settings').insert({
-      tenant_id: tenantId,
-      notify_barber_on_booking: true,
-      closing_buffer_minutes: 10,
-    })
+    // 7. Criar Tenant Settings e Tenant Site Config
+    await Promise.all([
+      admin.from('tenant_settings').insert({
+        tenant_id: tenantId,
+        notify_barber_on_booking: true,
+        closing_buffer_minutes: 10,
+      }),
+      admin.from('tenant_site_config').insert({
+        tenant_id: tenantId,
+        headline_title: `Bem-vindo à ${data.barbershopName}`,
+        headline_subtitle: 'Agende seu corte ou barba online em segundos com os melhores profissionais.',
+        primary_color: '#D97706',
+        background_color: '#09090b',
+        card_color: '#18181b',
+        font_family: 'font-sans',
+        bg_texture: 'clean_dark',
+      })
+    ])
 
     // 8. Criar Perfil de Proprietário
     await admin.from('profiles').upsert({

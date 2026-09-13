@@ -25,9 +25,9 @@ export type Database = {
         { id?: string; name: string; max_barbers: number; monthly_price: number; asaas_external_id?: string | null; is_active?: boolean; created_at?: string; updated_at?: string }
       >
       tenants: Table<
-        { id: string; organization_id: string; plan_id: string | null; name: string; slug: string; custom_domain: string | null; status: Database['public']['Enums']['tenant_status']; past_due_since: string | null; address: Json; active_gateway: Database['public']['Enums']['gateway_provider'] | null; gateway_credentials: Json; visual_settings: Json; asaas_customer_id: string | null; asaas_subscription_id: string | null; created_at: string; updated_at: string },
-        { id?: string; organization_id: string; plan_id?: string | null; name: string; slug: string; custom_domain?: string | null; status?: Database['public']['Enums']['tenant_status']; past_due_since?: string | null; address?: Json; active_gateway?: Database['public']['Enums']['gateway_provider'] | null; gateway_credentials?: Json; visual_settings?: Json; asaas_customer_id?: string | null; asaas_subscription_id?: string | null; created_at?: string; updated_at?: string },
-        Partial<{ id: string; organization_id: string; plan_id: string | null; name: string; slug: string; custom_domain: string | null; status: Database['public']['Enums']['tenant_status']; past_due_since: string | null; address: Json; active_gateway: Database['public']['Enums']['gateway_provider'] | null; gateway_credentials: Json; visual_settings: Json; asaas_customer_id: string | null; asaas_subscription_id: string | null; created_at: string; updated_at: string }>,
+        { id: string; organization_id: string; plan_id: string | null; name: string; slug: string; custom_domain: string | null; status: Database['public']['Enums']['tenant_status']; past_due_since: string | null; address: Json; document_number?: string | null; owner_name?: string | null; address_street?: string | null; address_number?: string | null; address_neighborhood?: string | null; address_city?: string | null; address_state?: string | null; address_cep?: string | null; active_gateway: Database['public']['Enums']['gateway_provider'] | null; gateway_credentials: Json; visual_settings: Json; asaas_customer_id: string | null; asaas_subscription_id: string | null; created_at: string; updated_at: string },
+        { id?: string; organization_id: string; plan_id?: string | null; name: string; slug: string; custom_domain?: string | null; status?: Database['public']['Enums']['tenant_status']; past_due_since?: string | null; address?: Json; document_number?: string | null; owner_name?: string | null; address_street?: string | null; address_number?: string | null; address_neighborhood?: string | null; address_city?: string | null; address_state?: string | null; address_cep?: string | null; active_gateway?: Database['public']['Enums']['gateway_provider'] | null; gateway_credentials?: Json; visual_settings?: Json; asaas_customer_id?: string | null; asaas_subscription_id?: string | null; created_at?: string; updated_at?: string },
+        Partial<{ id: string; organization_id: string; plan_id: string | null; name: string; slug: string; custom_domain: string | null; status: Database['public']['Enums']['tenant_status']; past_due_since: string | null; address: Json; document_number?: string | null; owner_name?: string | null; address_street?: string | null; address_number?: string | null; address_neighborhood?: string | null; address_city?: string | null; address_state?: string | null; address_cep?: string | null; active_gateway: Database['public']['Enums']['gateway_provider'] | null; gateway_credentials: Json; visual_settings: Json; asaas_customer_id: string | null; asaas_subscription_id: string | null; created_at: string; updated_at: string }>,
         [
           {
             foreignKeyName: "tenants_plan_id_fkey"
@@ -45,6 +45,7 @@ export type Database = {
           }
         ]
       >
+
       system_settings: Table<
         { id: boolean; landing_content: Json; grace_period_days: number; created_at: string; updated_at: string },
         { id?: boolean; landing_content?: Json; grace_period_days?: number; created_at?: string; updated_at?: string }
@@ -52,6 +53,62 @@ export type Database = {
       tenant_settings: Table<
         { tenant_id: string; evolution_api_enabled: boolean; evolution_api_url: string | null; evolution_api_key: string | null; evolution_instance: string | null; notify_barber_on_booking: boolean; closing_buffer_minutes: number; cancellation_notice_hours: number; no_show_commission_enabled: boolean; no_show_commission_percent: number; no_show_policy: Database['public']['Enums']['refund_policy']; timezone: string; enable_product_commission: boolean; credits_validity_days: number; hold_timeout_minutes: number; allow_vip_members: boolean; fidelity_rules: Json; birthday_rules: Json; vip_payment_mode: Database['public']['Enums']['vip_payment_mode']; created_at: string; updated_at: string },
         { tenant_id: string; evolution_api_enabled?: boolean; evolution_api_url?: string | null; evolution_api_key?: string | null; evolution_instance?: string | null; notify_barber_on_booking?: boolean; closing_buffer_minutes?: number; cancellation_notice_hours?: number; no_show_commission_enabled?: boolean; no_show_commission_percent?: number; no_show_policy?: Database['public']['Enums']['refund_policy']; timezone?: string; enable_product_commission?: boolean; credits_validity_days?: number; hold_timeout_minutes?: number; allow_vip_members?: boolean; fidelity_rules?: Json; birthday_rules?: Json; vip_payment_mode?: Database['public']['Enums']['vip_payment_mode']; created_at?: string; updated_at?: string }
+      >
+      tenant_site_config: Table<
+        {
+          id: string
+          tenant_id: string
+          logo_url: string | null
+          banner_url: string | null
+          headline_title: string | null
+          headline_subtitle: string | null
+          about_text: string | null
+          font_family: 'font-sans' | 'font-serif' | 'font-cinzel' | 'font-bebas' | string
+          bg_texture: 'clean_dark' | 'carbon' | 'dark_wood' | 'dark_brick' | 'noise_grain' | string
+          primary_color: string
+          background_color: string
+          card_color: string
+          gallery_photos: Json
+          amenities: Json
+          sections_visibility: Json
+          updated_at: string
+        },
+        {
+          id?: string
+          tenant_id: string
+          logo_url?: string | null
+          banner_url?: string | null
+          headline_title?: string | null
+          headline_subtitle?: string | null
+          about_text?: string | null
+          font_family?: string
+          bg_texture?: string
+          primary_color?: string
+          background_color?: string
+          card_color?: string
+          gallery_photos?: Json
+          amenities?: Json
+          sections_visibility?: Json
+          updated_at?: string
+        },
+        Partial<{
+          id: string
+          tenant_id: string
+          logo_url: string | null
+          banner_url: string | null
+          headline_title: string | null
+          headline_subtitle: string | null
+          about_text: string | null
+          font_family: string
+          bg_texture: string
+          primary_color: string
+          background_color: string
+          card_color: string
+          gallery_photos: Json
+          amenities: Json
+          sections_visibility: Json
+          updated_at: string
+        }>
       >
       profiles: Table<
         { id: string; tenant_id: string | null; role: Database['public']['Enums']['user_role']; full_name: string; email: string; phone: string | null; birth_date: string | null; avatar_url: string | null; commission_percent: number; tax_document: string | null; legal_name: string | null; partner_contract_signed_at: string | null; seniority_tier?: 'junior' | 'pleno' | 'senior' | 'master'; is_active: boolean; created_at: string; updated_at: string },

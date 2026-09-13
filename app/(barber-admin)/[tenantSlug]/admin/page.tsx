@@ -1295,13 +1295,23 @@ export default function BarberAdminPage() {
         {activeTab === 'personalizacao' && (
           <div className="space-y-6 max-w-2xl">
             <form onSubmit={handleSaveSettings} className="vintage-card p-6 sm:p-8 border border-[#d4af37]/30 space-y-5">
-              <div>
-                <h3 className="font-cinzel font-bold text-white text-base">
-                  Personalização Visual da Barbearia
-                </h3>
-                <p className="text-xs text-[#a89e90]">
-                  Escolha o tema, configure seu Instagram e a mensagem de boas-vindas do WhatsApp.
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#d4af37]/20 pb-4">
+                <div>
+                  <h3 className="font-cinzel font-bold text-white text-base">
+                    Personalização Visual da Barbearia
+                  </h3>
+                  <p className="text-xs text-[#a89e90]">
+                    Escolha o tema, cores, tipografia, fotos e seções com Live Preview em tempo real.
+                  </p>
+                </div>
+
+                <Link
+                  href={`/${tenantSlug}/admin/personalizar`}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#d4af37] to-amber-500 text-black text-xs font-cinzel font-bold flex items-center gap-1.5 shadow-lg shadow-[#d4af37]/20 hover:scale-105 transition-all w-fit"
+                >
+                  <Palette className="w-4 h-4" />
+                  Abrir Construtor Visual Completo ↗
+                </Link>
               </div>
 
               {/* Paleta de Cores */}
