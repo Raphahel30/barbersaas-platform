@@ -205,26 +205,23 @@ export default function SaasLandingPage() {
 
       {/* 1. HEADER FIXO VINTAGE & DINÂMICO */}
       <header
-        className={`sticky top-0 z-40 px-4 sm:px-8 py-3 w-full transition-all duration-300 ${
-          isScrolled ? 'glass-panel glass-panel-scrolled' : 'bg-[#080706]/80 backdrop-blur-md border-b border-[#d4af37]/15'
+        className={`sticky top-0 z-40 px-4 sm:px-8 py-2.5 sm:py-3 w-full transition-all duration-300 ${
+          isScrolled ? 'glass-panel glass-panel-scrolled' : 'bg-[#080706]/85 backdrop-blur-md border-b border-[#d4af37]/15'
         }`}
       >
-        <div className="w-full max-w-6xl mx-auto px-4 flex items-center justify-between">
-          {/* Logo & Marca Navalio */}
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-[#d4af37]/70 shadow-lg shadow-[#d4af37]/20 group-hover:border-[#d4af37] transition-all transform group-hover:scale-105">
+        <div className="w-full max-w-6xl mx-auto px-2 sm:px-4 flex items-center justify-between min-h-[58px] sm:min-h-[64px]">
+          {/* Logo Principal Completa Navalio */}
+          <Link href="/" className="flex items-center group py-0.5">
+            <div className="relative h-11 sm:h-14 w-auto flex items-center">
               <Image
-                src="/images/branding/navalio-icon-n.jpg"
+                src="/images/branding/navalio-logo-horizontal.png"
                 alt="Navalio"
-                width={40}
-                height={40}
-                className="object-cover"
+                width={200}
+                height={56}
+                className="h-10 sm:h-13 w-auto max-w-[150px] sm:max-w-[210px] object-contain drop-shadow-[0_2px_10px_rgba(212,175,55,0.25)] group-hover:scale-105 transition-transform duration-300"
                 priority
               />
             </div>
-            <span className="font-cinzel font-black text-xl sm:text-2xl tracking-wider gold-gradient-text leading-none">
-              NAVALIO
-            </span>
           </Link>
 
           {/* Navegação Desktop */}
@@ -265,20 +262,6 @@ export default function SaasLandingPage() {
           <span className="text-[#d4af37]">⚔</span>
           <span>Aceleração de Retenção & Repasse para Barbearias de Elite</span>
           <span className="text-[#d4af37]">⚔</span>
-        </div>
-
-        {/* Emblema Principal / Brasão Horizontal em Destaque */}
-        <div className="w-full max-w-md sm:max-w-xl mb-6 relative flex justify-center scroll-reveal">
-          <div className="relative group">
-            <Image
-              src="/images/branding/navalio-logo-horizontal.png"
-              alt="Brasão Oficial Navalio"
-              width={560}
-              height={320}
-              className="w-full h-auto drop-shadow-[0_15px_35px_rgba(212,175,55,0.25)] filter contrast-105"
-              priority
-            />
-          </div>
         </div>
 
         {/* Título de Impacto Old-School */}
