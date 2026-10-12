@@ -21,15 +21,20 @@ Status: parcialmente mapeada remotamente.
 ## Fase 3 — Fluxos comerciais
 - Agendamento: contrato atual de preço/grants mapeado; ainda faltam teste de preço manipulado em banco descartável, disponibilidade, hold, confirmação, cancelamento e concorrência completos.
 - CRM e histórico.
-- Mensalistas e consumo de cortes.
+- Unificar VIP/mensalistas sob o produto Mensalista, preservando dados e permitindo serviços, quantidades e frequência configuráveis.
 - Caixa, pagamentos e fechamentos.
-- Builder, publicação e white-label.
+- Builder com rascunho, preview, confirmação, publicação e rollback.
+- Permissões configuráveis da recepção, com financeiro sensível negado por padrão.
+- Filiais e franquias fazem parte do escopo anterior ao lançamento e serão testadas progressivamente.
 
 ## Fase 4 — Integrações
-- Webhooks de pagamento.
+- Gateway tenant-scoped selecionável: Asaas, PagSeguro ou Mercado Pago.
+- Cobrança central da assinatura Navalio separada dos gateways dos tenants.
+- Webhooks de pagamento e idempotência por provedor/tenant.
 - WhatsApp/notificações.
 - Domínio/Cloudflare.
 - PWA e comportamento mobile.
+- Totem, TV, Presente e Estilo/Visagismo ficam após o caminho crítico de lançamento.
 
 ## Fase 5 — Validação candidata
 - Status: bloqueada neste workspace até instalação reproduzível em Node 20.
