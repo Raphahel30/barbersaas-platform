@@ -1,7 +1,7 @@
 'use server'
 
-import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { requireTenantStaff } from '@/lib/auth/guards'
 import type { Database } from '@/types/database.types'
 import {
   getOrCreateClientTrustScore,
@@ -19,21 +19,6 @@ export type ClientActionResult<T> =
   | { success: false; message: string; error?: string }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
-async function getAuthenticatedUser() {
-  const supabase = await createClient()
-  const { data } = await supabase.auth.getClaims()
-  const userId = typeof data?.claims?.sub === 'string' ? data.claims.sub : null
-  if (!userId) return null
-
-  const profile = await supabase
-    .from('profiles')
-    .select('id, tenant_id, role')
-    .eq('id', userId)
-    .maybeSingle()
-
-  return profile.data
-}
 
 /**
  * Lista todos os clientes e seus respectivos Trust Scores com suporte a busca e filtros.
@@ -53,10 +38,7 @@ export async function listClientsWithTrustScoreAction(
       return { success: false, message: 'ID de tenant inválido.' }
     }
 
-    const user = await getAuthenticatedUser()
-    if (!user || (user.tenant_id !== tenantId && user.role !== 'super_admin')) {
-      return { success: false, message: 'Não autorizado a acessar dados deste estabelecimento.' }
-    }
+    await requireTenantStaff(tenantId)
 
     const supabase = createAdminClient()
     let query = supabase
@@ -119,10 +101,7 @@ export async function toggleClientBlacklistAction(
       return { success: false, message: 'Identificadores inválidos.' }
     }
 
-    const user = await getAuthenticatedUser()
-    if (!user || (user.tenant_id !== tenantId && user.role !== 'super_admin')) {
-      return { success: false, message: 'Apenas a gerência pode alterar o status da Blacklist.' }
-    }
+    await requireTenantStaff(tenantId)
 
     const supabase = createAdminClient()
 
@@ -171,10 +150,7 @@ export async function setCustomClientReservationFeeAction(
       return { success: false, message: 'A porcentagem de taxa deve estar entre 0% e 100%.' }
     }
 
-    const user = await getAuthenticatedUser()
-    if (!user || (user.tenant_id !== tenantId && user.role !== 'super_admin')) {
-      return { success: false, message: 'Apenas a gerência pode customizar a taxa do cliente.' }
-    }
+    await requireTenantStaff(tenantId)
 
     const supabase = createAdminClient()
 
@@ -218,6 +194,8 @@ export async function getClientTrustDetailsAction(
     if (!UUID_PATTERN.test(tenantId)) {
       return { success: false, message: 'Tenant ID inválido.' }
     }
+
+    await requireTenantStaff(tenantId)
 
     const cleanPhone = phone.replace(/\D/g, '')
     if (cleanPhone.length < 8) {

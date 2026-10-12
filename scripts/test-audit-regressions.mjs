@@ -124,6 +124,29 @@ function testBookingPriceBoundaryIsServerControlled() {
   assert.match(rpcMigration, /GRANT EXECUTE ON FUNCTION public\.create_appointment_hold_atomic\([\s\S]*?TO service_role/i)
 }
 
+function testPrivilegedOperationalActionsEnforceTenantRoles() {
+  const clients = read('app/actions/clients.ts')
+  const campaigns = read('app/actions/campaigns.ts')
+  const gatewaySplit = read('app/actions/gateways-split.ts')
+
+  assert.match(clients, /requireTenantStaff/)
+  assert.equal((clients.match(/await requireTenantStaff\(tenantId\)/g) ?? []).length, 4)
+  assert.match(campaigns, /requireTenantOwner/)
+  assert.match(campaigns, /await requireTenantOwner\(resolvedTenantId\)/)
+  assert.match(campaigns, /await requireCampaignOwnerByQueueId\(queueId\)/)
+  assert.match(campaigns, /await requireCampaignOwnerByCampaignId\(campaignId\)/)
+  assert.match(gatewaySplit, /getTenantSplitConfigAction[\s\S]*?await requireOwner\(tenantId\)/)
+}
+
+function testReferralSummariesEnforceOwnerOrSelfAccess() {
+  const growth = read('app/actions/growth.ts')
+
+  assert.match(growth, /getTenantReferralInfo[\s\S]*?await requireTenantOwner\(tenantId\)/)
+  assert.match(growth, /getClientReferralInfo[\s\S]*?await requireClientReferralAccess\(tenantId, clientId\)/)
+  assert.match(growth, /profile\.role === 'client'[\s\S]*?userId === clientId/)
+  assert.match(growth, /requireTenantStaff\(tenantId\)/)
+}
+
 const tests = [
   ['tenant reads are hardened by migration', testTenantReadHardeningMigration],
   ['booking uses profiles as the canonical client source', testBookingUsesCanonicalProfilesTable],
@@ -134,6 +157,8 @@ const tests = [
   ['storage buckets have server-side size and MIME limits', testStorageBucketsHaveServerSideLimits],
   ['application authorization uses the profile role', testApplicationAuthorizationUsesProfileRole],
   ['booking price boundary is server-controlled', testBookingPriceBoundaryIsServerControlled],
+  ['privileged operational actions enforce tenant roles', testPrivilegedOperationalActionsEnforceTenantRoles],
+  ['referral summaries enforce owner or self access', testReferralSummariesEnforceOwnerOrSelfAccess],
 ]
 
 let failed = 0

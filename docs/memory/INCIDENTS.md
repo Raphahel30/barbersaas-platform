@@ -115,4 +115,16 @@ Para cada incidente:
 - Regra preventiva: todo bucket deve nascer com visibilidade, tamanho máximo, MIME e matriz de papéis documentados.
 - Risco residual: policies de upload/leitura ainda precisam de testes reais por bucket e papel.
 
+## ERR-2026-009 — Server Actions administrativas ignoravam papel e tenant
+- Data: 2026-10-12
+- Status: corrigido no branch; integração por papel pendente.
+- Sintoma: ações exportadas de CRM, campanhas, repasses e indicações usavam `createAdminClient()` com autorização ausente ou limitada à existência de sessão/vínculo de tenant.
+- Causa raiz: o service role foi tratado como autorização, embora ele apenas forneça acesso técnico e ignore RLS.
+- Impacto: cliente do tenant poderia alcançar dados operacionais de confiança; ações de campanha e filas aceitavam identificadores sem validar o proprietário; configuração de split e estatísticas de indicação podiam ser consultadas sem o papel exigido.
+- Correção: CRM exige equipe do tenant; campanhas, split e indicação do tenant exigem proprietário; indicação do cliente permite somente o próprio cliente ou equipe do mesmo tenant.
+- Teste de reprodução: o novo contrato de regressão foi escrito antes da correção e falhou em `growth.ts` por ausência de `requireTenantOwner`.
+- Evidência de passagem: `npm run test:audit` passou 11/11 contratos após as correções.
+- Regra preventiva: toda action com cliente administrativo deve ter guarda explícita antes da primeira consulta, mesmo que a interface atual esconda o botão.
+- Limitações: teste estático não substitui execução A/B por papel; a permissão financeira opcional da recepção ainda precisa de modelo granular.
+
 Não apagar registros antigos. Complementar quando novas evidências surgirem.

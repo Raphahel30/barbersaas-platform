@@ -9,6 +9,7 @@ import {
 } from '@/lib/marketing/broadcast'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { createClient } from '@/utils/supabase/server'
+import { requireTenantOwner } from '@/lib/auth/guards'
 import type { Database } from '@/types/database.types'
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -41,23 +42,27 @@ async function getTenantIdFromSession(): Promise<string | null> {
   return user?.tenant_id || null
 }
 
-async function requireOwner(tenantId: string) {
-  const supabase = await createClient()
-  const { data } = await supabase.auth.getClaims()
-  const userId = typeof data?.claims?.sub === 'string' ? data.claims.sub : null
-  if (!userId) return false
-
-  const profile = await supabase
-    .from('profiles')
-    .select('tenant_id, role')
-    .eq('id', userId)
+async function requireCampaignOwnerByCampaignId(campaignId: string): Promise<string> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('marketing_campaigns')
+    .select('tenant_id')
+    .eq('id', campaignId)
     .maybeSingle()
+  if (error || !data) throw new Error('Campanha não encontrada.')
+  await requireTenantOwner(data.tenant_id)
+  return data.tenant_id
+}
 
-  return Boolean(
-    profile.data &&
-    profile.data.tenant_id === tenantId &&
-    ['owner', 'super_admin'].includes(profile.data.role)
-  )
+async function requireCampaignOwnerByQueueId(queueId: string): Promise<string> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('campaign_queue')
+    .select('campaign_id')
+    .eq('id', queueId)
+    .maybeSingle()
+  if (error || !data) throw new Error('Item da campanha não encontrado.')
+  return requireCampaignOwnerByCampaignId(data.campaign_id)
 }
 
 /**
@@ -73,6 +78,7 @@ export async function getSegmentAudienceCount(
   }
 
   try {
+    await requireTenantOwner(tenantId)
     const recipients = await querySegmentRecipients(tenantId, segment, barberId)
     return {
       success: true,
@@ -127,8 +133,9 @@ export async function createMarketingCampaignAction(input: {
   const segment = (input.targetSegment || input.segment || 'vip') as CampaignSegment
   const barberId = input.specificBarberId || input.barberId
 
-  const isOwner = await requireOwner(resolvedTenantId)
-  if (!isOwner) {
+  try {
+    await requireTenantOwner(resolvedTenantId)
+  } catch {
     return { success: false, message: 'Apenas proprietários podem criar campanhas.', error: 'Não autorizado' }
   }
 
@@ -218,6 +225,12 @@ export async function dispatchQueueItemAction(
     return { success: false, message: 'ID de item inválido.' }
   }
 
+  try {
+    await requireCampaignOwnerByQueueId(queueId)
+  } catch {
+    return { success: false, message: 'Não autorizado.', error: 'Não autorizado' }
+  }
+
   const admin = createAdminClient()
   const itemRes = await admin.from('campaign_queue').select('*').eq('id', queueId).single()
 
@@ -278,6 +291,12 @@ export async function listCampaignsAction(
     return { success: false, message: 'ID da barbearia inválido.' }
   }
 
+  try {
+    await requireTenantOwner(tenantId)
+  } catch {
+    return { success: false, message: 'Não autorizado.', error: 'Não autorizado' }
+  }
+
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('marketing_campaigns')
@@ -297,6 +316,12 @@ export async function getCampaignQueueAction(
 ): Promise<CampaignActionResult<QueueItemRow[]>> {
   if (!UUID_PATTERN.test(campaignId)) {
     return { success: false, message: 'ID de campanha inválido.' }
+  }
+
+  try {
+    await requireCampaignOwnerByCampaignId(campaignId)
+  } catch {
+    return { success: false, message: 'Não autorizado.', error: 'Não autorizado' }
   }
 
   const admin = createAdminClient()
@@ -343,6 +368,15 @@ export async function markQueueItemSentAction(
   queueId: string,
   status: 'sent' | 'failed' = 'sent'
 ): Promise<CampaignActionResult<{ success: boolean }>> {
+  if (!UUID_PATTERN.test(queueId)) {
+    return { success: false, message: 'ID de item inválido.', error: 'ID inválido' }
+  }
+  try {
+    await requireCampaignOwnerByQueueId(queueId)
+  } catch {
+    return { success: false, message: 'Não autorizado.', error: 'Não autorizado' }
+  }
+
   const admin = createAdminClient()
   const { error } = await admin
     .from('campaign_queue')

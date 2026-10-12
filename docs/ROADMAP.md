@@ -12,9 +12,9 @@ Status: parcialmente mapeada remotamente.
 - Identificar lacunas e contratos duplicados.
 
 ## Fase 2 — Segurança e isolamento
-- Status: dois lotes implementados localmente; validação tenant A/B, banco descartável e aplicação remota pendentes.
+- Status: três lotes implementados localmente; matriz de papéis documentada, mas validação tenant A/B, banco descartável e aplicação remota seguem pendentes.
 - Validar RLS por tenant.
-- Validar Master Admin e permissões (fonte única preparada; teste real pendente).
+- Validar Master Admin e permissões (fonte única e guardas de CRM/campanha/split/indicação preparados; teste real pendente).
 - Conferir storage, RPCs, rate limiting e logs (limites e hardening de waitlist/galeria preparados).
 - Testar tentativa de acesso cruzado.
 
