@@ -6,7 +6,6 @@ import { redirect } from 'next/navigation'
 import type { Database, Json } from '@/types/database.types'
 import { createClient } from '@/utils/supabase/server'
 
-const SUPER_ADMIN_EMAIL = 'rafaelcassu@gmail.com'
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -357,15 +356,6 @@ export async function signIn(formData: FormData): Promise<AuthActionState> {
     return { success: false, message: 'E-mail ou senha incorretos.' }
   }
 
-  // Se for o Super Admin do sistema
-  if (data.user.email?.toLowerCase() === SUPER_ADMIN_EMAIL || data.user.user_metadata?.role === 'super_admin') {
-    return {
-      success: true,
-      message: 'Autenticado com sucesso como Super Admin.',
-      redirectTo: '/master-admin',
-    }
-  }
-
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('role,is_active,tenant_id,tenants(slug)')
@@ -373,14 +363,6 @@ export async function signIn(formData: FormData): Promise<AuthActionState> {
     .maybeSingle()
 
   if (profileError || !profile || !profile.is_active) {
-    // Fallback para caso o e-mail seja do super admin
-    if (data.user.email?.toLowerCase() === SUPER_ADMIN_EMAIL) {
-      return {
-        success: true,
-        message: 'Autenticado com sucesso.',
-        redirectTo: '/master-admin',
-      }
-    }
     await supabase.auth.signOut({ scope: 'local' })
     return { success: false, message: 'Conta sem perfil ativo. Entre em contato com o suporte.' }
   }

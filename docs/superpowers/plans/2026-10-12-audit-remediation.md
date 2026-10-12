@@ -86,10 +86,10 @@
 - Consumes: grants remotos, policies atuais e consumidores reais do código.
 - Produces: grants mínimos, insert público validado/rate-limited e policies explícitas por bucket.
 
-- [ ] Mapear corpo, grant e consumidor de cada `SECURITY DEFINER`.
+- [x] Mapear corpo, grant e consumidor de cada `SECURITY DEFINER`.
 - [ ] Criar testes negativos por papel antes de cada mudança.
-- [ ] Tratar waitlist sem remover agendamento de visitante.
-- [ ] Tratar cada bucket separadamente, preservando uploads legítimos.
+- [x] Tratar waitlist sem remover agendamento de visitante (implementação/teste estático; integração pendente).
+- [x] Tratar cada bucket separadamente, preservando uploads legítimos (limites locais; matriz real pendente).
 - [ ] Validar em banco descartável e registrar riscos residuais.
 - [ ] Commitar cada contrato separadamente.
 

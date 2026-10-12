@@ -1,6 +1,6 @@
 # Navalio SaaS — Estado do projeto
 
-Atualizado em 12/10/2026, por auditoria remota e primeiro lote local de correções.
+Atualizado em 12/10/2026, por auditoria remota e dois lotes locais de correções.
 
 ## Baseline remoto
 - Repositório: `Raphahel30/barbersaas-platform`
@@ -34,8 +34,13 @@ Atualizado em 12/10/2026, por auditoria remota e primeiro lote local de correç�
 - Migration local restringe leitura de `tenants` por linha e por coluna; ainda não aplicada remotamente.
 - Booking usa `profiles` como fonte canônica do aniversário.
 - Preflight não apresenta fallback `wa.me` como Evolution homologada nem declara prontidão total.
-- `npm run test:audit` passou para os três contratos em 12/10/2026.
+- Waitlist exige autorização vinculada ao tenant nas operações de equipe, valida a entrada pública e limita tentativas.
+- Galeria exige staff do tenant, valida arquivo/vínculos e grava mídia no Storage em vez de Base64 no banco.
+- Super Admin usa o papel do perfil ativo como fonte única; migration substitui policies com e-mail hardcoded.
+- Buckets recebem limites de tamanho e MIME específicos sem mudança de visibilidade.
+- `npm run test:audit` passou para oito contratos em 12/10/2026.
 - Typecheck/build permanecem bloqueados neste workspace porque `npm ci` não concluiu e o ambiente usa Node 24 em vez de Node 20.
+- Nenhuma migration deste branch foi aplicada ao Supabase remoto.
 
 ## Regra de evidência
 Nenhum item deve ser marcado como validado apenas por existir código, documentação ou commit. Exigir teste, resultado e referência.

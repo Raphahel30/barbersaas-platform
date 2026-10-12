@@ -81,3 +81,15 @@ Há múltiplas policies permissivas por papel/ação em diversas tabelas. Parte 
 
 ## Status
 Auditoria estrutural iniciada. O primeiro lote foi implementado localmente com testes de regressão: restrição de `tenants`, fonte canônica de aniversário e preflight sem falso verde. Nenhuma migration foi aplicada ao remoto. Testes tenant A/B, typecheck, build e validação de banco descartável ainda são obrigatórios antes do gate de produção.
+
+## Complemento — segundo lote local
+- As 10 funções `SECURITY DEFINER` foram classificadas: duas são internas para `service_role`, duas são triggers sem execução direta, cinco são helpers de RLS autenticados e `resolve_tenant_by_host` é o resolvedor público de retorno mínimo. Todas mantêm `search_path=''`. Os grants não foram alterados remotamente.
+- A identidade de Super Admin foi centralizada no perfil ativo com papel `super_admin`; migration local substitui as 20 policies baseadas em e-mail por `public.is_super_admin()`.
+- A waitlist preserva entrada de visitante pela Server Action, mas remove o insert direto para `anon/authenticated`, valida referências e aplica rate limit. Leitura e cancelamento agora exigem staff do tenant; claim verifica a transição concorrente.
+- A galeria passa a exigir staff do tenant e armazena arquivos validados no Storage em vez de Data URL na tabela.
+- Migration local define limites de tamanho e MIME em `avatars`, `barbershop-media`, `gallery`, `receipts` e `signatures`, sem mudar a visibilidade existente.
+- O advisor também reportou `rate_limit_buckets` com RLS sem policy. A ausência é intencional no contrato atual: acesso direto de usuário permanece bloqueado e o consumo ocorre por função/service role. Deve ser confirmado em teste de integração.
+- Proteção contra senhas vazadas continua sendo ação manual pendente no painel de Auth.
+- As 57 foreign keys sem índice e policies permissivas sobrepostas permanecem em análise; nenhuma alteração em massa será feita sem consultas e testes por papel.
+
+O teste estático `npm run test:audit` passou 8/8. Isso não substitui typecheck, build, testes tenant A/B nem aplicação em banco descartável. O projeto remoto segue inalterado.

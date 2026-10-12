@@ -1,5 +1,8 @@
 'use server'
 
+import { headers } from 'next/headers'
+import { requireTenantStaff } from '@/lib/auth/guards'
+import { checkDistributedRateLimit } from '@/lib/security/rate-limit'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { createClient } from '@/utils/supabase/server'
 import {
@@ -7,7 +10,6 @@ import {
   expireUnclaimedWaitlistOffers,
   triggerAutoFillForSlot,
 } from '@/lib/booking/waitlist'
-import type { Database } from '@/types/database.types'
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -50,6 +52,9 @@ export async function joinWaitlistAction(
   if (!input.serviceIds || input.serviceIds.length === 0) {
     return { success: false, message: 'Selecione pelo menos um serviço.' }
   }
+  if (!input.serviceIds.every((id) => UUID_PATTERN.test(id)) || new Set(input.serviceIds).size !== input.serviceIds.length) {
+    return { success: false, message: 'Um ou mais serviços são inválidos.' }
+  }
 
   // Verifica identidade do usuário autenticado (se houver)
   const supabase = await createClient()
@@ -76,7 +81,34 @@ export async function joinWaitlistAction(
     return { success: false, message: 'Informe seu telefone de contato para receber o aviso de vaga.' }
   }
 
+  const requestHeaders = await headers()
+  const clientIp = requestHeaders.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || requestHeaders.get('x-real-ip')
+    || 'unknown'
+  const rateLimit = await checkDistributedRateLimit(
+    `waitlist:${input.tenantId}:${clientIp}:${clientPhone || userId}`,
+    5,
+    15 * 60 * 1000,
+  )
+  if (!rateLimit.success) {
+    return { success: false, message: 'Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.' }
+  }
+
   const admin = createAdminClient()
+
+  const [tenantResult, servicesResult, barberResult] = await Promise.all([
+    admin.from('tenants').select('id').eq('id', input.tenantId).in('status', ['trial', 'active']).maybeSingle(),
+    admin.from('services').select('id').eq('tenant_id', input.tenantId).eq('is_active', true).in('id', input.serviceIds),
+    input.barberId
+      ? admin.from('profiles').select('id').eq('id', input.barberId).eq('tenant_id', input.tenantId).in('role', ['barber', 'owner']).eq('is_active', true).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ])
+  if (tenantResult.error || !tenantResult.data || servicesResult.error || servicesResult.data?.length !== input.serviceIds.length) {
+    return { success: false, message: 'Não foi possível validar a lista de espera desta barbearia.' }
+  }
+  if (input.barberId && (barberResult.error || !barberResult.data)) {
+    return { success: false, message: 'O barbeiro selecionado não está disponível nesta barbearia.' }
+  }
 
   // Evita duplicatas ativas no mesmo dia para o mesmo telefone/cliente
   let duplicateQuery = admin
@@ -92,7 +124,7 @@ export async function joinWaitlistAction(
     duplicateQuery = duplicateQuery.eq('guest_phone', clientPhone)
   }
 
-  const { data: existing } = await duplicateQuery.maybeSingle()
+  const { data: existing } = await duplicateQuery.limit(1).maybeSingle()
   if (existing) {
     return {
       success: true,
@@ -167,13 +199,15 @@ export async function claimWaitlistSlotAction(claimToken: string): Promise<{
   }
 
   // Marca como reivindicado
-  const { error: claimErr } = await admin
+  const { data: claimed, error: claimErr } = await admin
     .from('waitlist')
     .update({ status: 'claimed' })
     .eq('id', entry.id)
     .eq('status', 'notified')
+    .select('id')
+    .maybeSingle()
 
-  if (claimErr) {
+  if (claimErr || !claimed) {
     return { success: false, message: 'Não foi possível concluir a reivindicação da vaga.' }
   }
 
@@ -192,11 +226,9 @@ export async function getWaitlistForTenantAction(tenantId: string, dateStr?: str
     return { success: false, message: 'Barbearia inválida.', items: [] }
   }
 
-  const supabase = await createClient()
-  const { data: authData } = await supabase.auth.getClaims()
-  const userId = typeof authData?.claims?.sub === 'string' ? authData.claims.sub : null
-
-  if (!userId) {
+  try {
+    await requireTenantStaff(tenantId)
+  } catch {
     return { success: false, message: 'Não autorizado.', items: [] }
   }
 
@@ -235,7 +267,7 @@ export async function getWaitlistForTenantAction(tenantId: string, dateStr?: str
 }
 
 /**
- * Permite que a equipe ou cliente remova/cancele sua entrada na lista de espera.
+ * Permite que a equipe autorizada remova/cancele uma entrada da lista de espera.
  */
 export async function cancelWaitlistEntryAction(waitlistId: string): Promise<WaitlistActionResult> {
   if (!UUID_PATTERN.test(waitlistId)) {
@@ -243,6 +275,22 @@ export async function cancelWaitlistEntryAction(waitlistId: string): Promise<Wai
   }
 
   const admin = createAdminClient()
+  const { data: entry, error: findError } = await admin
+    .from('waitlist')
+    .select('tenant_id')
+    .eq('id', waitlistId)
+    .maybeSingle()
+
+  if (findError || !entry) {
+    return { success: false, message: 'Entrada da lista de espera não encontrada.' }
+  }
+
+  try {
+    await requireTenantStaff(entry.tenant_id)
+  } catch {
+    return { success: false, message: 'Não autorizado.' }
+  }
+
   const { error } = await admin
     .from('waitlist')
     .delete()

@@ -39,10 +39,75 @@ function testPreflightDoesNotClaimFalseGreen() {
   assert.doesNotMatch(source, /100% PRONTO PARA PRODUÇÃO/i)
 }
 
+function findMigration(suffix) {
+  const migrationDirectory = path.join(root, 'supabase/migrations')
+  const migrationName = fs.readdirSync(migrationDirectory).find((name) => name.endsWith(suffix))
+  assert.ok(migrationName, `missing ${suffix} migration`)
+  return read(`supabase/migrations/${migrationName}`)
+}
+
+function testWaitlistCannotBypassServerValidation() {
+  const sql = findMigration('_secure_waitlist_access.sql')
+  const source = read('app/actions/waitlist.ts')
+
+  assert.match(sql, /DROP POLICY IF EXISTS "waitlist public insert" ON public\.waitlist/i)
+  assert.match(sql, /REVOKE INSERT ON TABLE public\.waitlist FROM anon, authenticated/i)
+  assert.match(source, /requireTenantStaff/)
+  assert.match(source, /checkDistributedRateLimit/)
+  assert.match(source, /\.update\(\{ status: 'claimed' \}\)[\s\S]*?\.select\('id'\)[\s\S]*?\.maybeSingle\(\)/)
+}
+
+function testSuperAdminUsesDatabaseRole() {
+  const sql = findMigration('_centralize_super_admin_role.sql')
+
+  assert.match(sql, /p\.role\s*=\s*'super_admin'/i)
+  assert.doesNotMatch(sql, /rafaelcassu@gmail\.com/i)
+  assert.match(sql, /CREATE POLICY "super admin full access"/i)
+  assert.match(sql, /public\.is_super_admin\(\)/i)
+}
+
+function testGalleryUploadsAreAuthorizedAndBounded() {
+  const source = read('app/actions/gallery.ts')
+
+  assert.match(source, /requireTenantStaff\(input\.tenantId\)/)
+  assert.match(source, /GALLERY_DATA_URL_PATTERN/)
+  assert.match(source, /png\|jpeg\|webp/)
+  assert.match(source, /MAX_GALLERY_IMAGE_BYTES/)
+  assert.match(source, /storage[\s\S]*?\.from\('barbershop-media'\)[\s\S]*?\.upload\(/)
+  assert.match(source, /requireTenantStaff\(tenantId\)/)
+}
+
+function testStorageBucketsHaveServerSideLimits() {
+  const sql = findMigration('_bound_storage_buckets.sql')
+
+  for (const bucket of ['avatars', 'barbershop-media', 'gallery', 'receipts', 'signatures']) {
+    assert.match(sql, new RegExp(`id\\s*=\\s*'${bucket}'`, 'i'))
+  }
+  assert.match(sql, /file_size_limit/i)
+  assert.match(sql, /allowed_mime_types/i)
+  assert.doesNotMatch(sql, /SET\s+public\s*=\s*true/i)
+}
+
+function testApplicationAuthorizationUsesProfileRole() {
+  const guards = read('lib/auth/guards.ts')
+  const auth = read('app/actions/auth.ts')
+  const schedule = read('app/actions/schedule.ts')
+
+  assert.doesNotMatch(guards, /SUPER_ADMIN_EMAIL|rafaelcassu@gmail\.com/)
+  assert.doesNotMatch(auth, /user_metadata\?\.role|SUPER_ADMIN_EMAIL|rafaelcassu@gmail\.com/)
+  assert.doesNotMatch(schedule, /rafaelcassu@gmail\.com/)
+  assert.match(guards, /profile\.role\s*!==\s*'super_admin'/)
+}
+
 const tests = [
   ['tenant reads are hardened by migration', testTenantReadHardeningMigration],
   ['booking uses profiles as the canonical client source', testBookingUsesCanonicalProfilesTable],
   ['preflight does not report fallback as full readiness', testPreflightDoesNotClaimFalseGreen],
+  ['waitlist writes cannot bypass server validation', testWaitlistCannotBypassServerValidation],
+  ['super admin authorization uses the database role', testSuperAdminUsesDatabaseRole],
+  ['gallery uploads are authorized and bounded', testGalleryUploadsAreAuthorizedAndBounded],
+  ['storage buckets have server-side size and MIME limits', testStorageBucketsHaveServerSideLimits],
+  ['application authorization uses the profile role', testApplicationAuthorizationUsesProfileRole],
 ]
 
 let failed = 0
