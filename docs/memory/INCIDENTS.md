@@ -65,6 +65,7 @@ Para cada incidente:
 - Teste preventivo: `npm run test:audit` executa com Node puro.
 - Risco residual: typecheck, lint, build e testes TypeScript continuam bloqueados até instalação reproduzível em Node 20.
 - Status: mitigado; validação completa bloqueada pelo ambiente.
+- Ocorrência adicional: a primeira chamada do orquestrador de skills em 12/10 usou `package` como nome de variável JavaScript e falhou por palavra reservada; a chamada foi refeita com `pkg` e concluiu. Regra preventiva: evitar identificadores reservados em scripts de orquestração.
 
 ## ERR-2026-005 — Waitlist expunha dados e mutações entre tenants
 - Data: 2026-10-12

@@ -99,6 +99,31 @@ function testApplicationAuthorizationUsesProfileRole() {
   assert.match(guards, /profile\.role\s*!==\s*'super_admin'/)
 }
 
+function listSourceFiles(directory) {
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = path.join(directory, entry.name)
+    if (entry.isDirectory()) return listSourceFiles(fullPath)
+    return /\.(?:ts|tsx|js|mjs)$/.test(entry.name) ? [fullPath] : []
+  })
+}
+
+function testBookingPriceBoundaryIsServerControlled() {
+  const booking = read('app/actions/booking.ts')
+  const inputContract = booking.match(/export type CreateAppointmentHoldInput = \{([\s\S]*?)\n\}/)?.[1] ?? ''
+  const appCallers = listSourceFiles(path.join(root, 'app'))
+    .filter((file) => fs.readFileSync(file, 'utf8').includes("rpc('create_appointment_hold_atomic'"))
+    .map((file) => path.relative(root, file))
+  const rpcMigration = read('supabase/migrations/20260913020000_reconcile_and_harden.sql')
+
+  assert.deepEqual(appCallers, ['app/actions/booking.ts'])
+  assert.doesNotMatch(inputContract, /totalAmount|reservationFee|price/)
+  assert.match(booking, /\.from\('services'\)\.select\('\*'\)/)
+  assert.match(booking, /payableCents\s*=\s*servicesResult\.data\.reduce/)
+  assert.match(booking, /reservationFeeCents\s*=\s*servicesResult\.data\.reduce/)
+  assert.match(rpcMigration, /REVOKE EXECUTE ON FUNCTION public\.create_appointment_hold_atomic\([\s\S]*?FROM PUBLIC, anon, authenticated/i)
+  assert.match(rpcMigration, /GRANT EXECUTE ON FUNCTION public\.create_appointment_hold_atomic\([\s\S]*?TO service_role/i)
+}
+
 const tests = [
   ['tenant reads are hardened by migration', testTenantReadHardeningMigration],
   ['booking uses profiles as the canonical client source', testBookingUsesCanonicalProfilesTable],
@@ -108,6 +133,7 @@ const tests = [
   ['gallery uploads are authorized and bounded', testGalleryUploadsAreAuthorizedAndBounded],
   ['storage buckets have server-side size and MIME limits', testStorageBucketsHaveServerSideLimits],
   ['application authorization uses the profile role', testApplicationAuthorizationUsesProfileRole],
+  ['booking price boundary is server-controlled', testBookingPriceBoundaryIsServerControlled],
 ]
 
 let failed = 0

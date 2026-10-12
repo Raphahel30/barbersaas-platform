@@ -103,10 +103,10 @@
 **Interfaces:**
 - Produces: preço recalculado/validado no banco e índices associados a consultas reais.
 
-- [ ] Enumerar todos os consumidores da RPC e congelar o contrato atual em testes.
+- [x] Enumerar todos os consumidores da RPC e congelar o contrato atual em testes.
 - [ ] Criar teste de preço manipulado e concorrência.
-- [ ] Implementar a menor validação no banco sem duplicar desconto indevidamente.
-- [ ] Medir planos de consulta antes/depois de cada índice candidato.
+- [x] Decidir sobre validação no banco sem duplicar desconto indevidamente (adiada: exige contrato versionado de cotação).
+- [x] Triar índices do caminho de booking; medição antes/depois aguarda volume representativo.
 - [ ] Executar suíte completa local, Playwright desktop/mobile e teste de migrations.
 - [ ] Commitar unidades independentes.
 

@@ -19,7 +19,7 @@ Status: parcialmente mapeada remotamente.
 - Testar tentativa de acesso cruzado.
 
 ## Fase 3 — Fluxos comerciais
-- Agendamento: disponibilidade, hold, confirmação, cancelamento e concorrência.
+- Agendamento: contrato atual de preço/grants mapeado; ainda faltam teste de preço manipulado em banco descartável, disponibilidade, hold, confirmação, cancelamento e concorrência completos.
 - CRM e histórico.
 - Mensalistas e consumo de cortes.
 - Caixa, pagamentos e fechamentos.
@@ -37,6 +37,7 @@ Status: parcialmente mapeada remotamente.
 - Testes desktop/mobile.
 - Evidências e plano de rollback.
 - Aprovação explícita antes do deploy.
+- Medir índices candidatos com volume representativo; não criar as 57 sugestões automaticamente.
 
 ## Fase 6 — Publicação
 Somente após aprovação. Validar produção e atualizar este arquivo.

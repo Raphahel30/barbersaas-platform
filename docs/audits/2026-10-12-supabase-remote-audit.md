@@ -92,4 +92,12 @@ Auditoria estrutural iniciada. O primeiro lote foi implementado localmente com t
 - Proteção contra senhas vazadas continua sendo ação manual pendente no painel de Auth.
 - As 57 foreign keys sem índice e policies permissivas sobrepostas permanecem em análise; nenhuma alteração em massa será feita sem consultas e testes por papel.
 
-O teste estático `npm run test:audit` passou 8/8. Isso não substitui typecheck, build, testes tenant A/B nem aplicação em banco descartável. O projeto remoto segue inalterado.
+O teste estático `npm run test:audit` passou 9/9 após o complemento de preço. Isso não substitui typecheck, build, testes tenant A/B nem aplicação em banco descartável. O projeto remoto segue inalterado.
+
+## Complemento — contrato de preço e índices
+- A RPC `create_appointment_hold_atomic` instalada é `SECURITY INVOKER` e executável somente por `service_role`; `anon` e `authenticated` não podem chamá-la.
+- O único consumidor encontrado no aplicativo é `app/actions/booking.ts`. O contrato público da action não recebe preço ou sinal; ambos são calculados no servidor a partir de serviços ativos do tenant, yield, aniversário, VIP e fidelidade.
+- A RPC ainda aceita os valores finais como parâmetros. Isso permanece como risco de defesa em profundidade para um futuro consumidor privilegiado incorreto, não como exploração direta confirmada pelo navegador no contrato atual.
+- Não foi criada migration de preço: uma validação parcial no banco quebraria descontos legítimos ou continuaria aceitando desconto arbitrário. A alternativa correta exige contrato versionado de cotação/decomposição e teste em banco descartável.
+- Entre as foreign keys sem índice, foram revisados os caminhos de booking. `appointments` já possui índice parcial para conflito e índices por tenant/barbeiro/cliente; `barber_time_off` já cobre tenant, barbeiro e datas. `barber_blocked_slots` e `client_subscriptions` são candidatos futuros, mas as tabelas remotas ainda não têm volume estimado suficiente para justificar criação sem medição.
+- Nenhum índice foi criado e nenhuma consulta remota foi modificada.
