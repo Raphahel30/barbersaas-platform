@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:critical": "npx tsx scripts/test-critical-flows.ts",
+    "test:audit": "node scripts/test-audit-regressions.mjs",
     "check-env": "tsx scripts/validate-env.ts",
     "preflight": "npx tsx -C react-server scripts/preflight-check.ts",
     "test:e2e": "playwright test"

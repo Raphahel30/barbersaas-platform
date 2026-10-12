@@ -80,4 +80,4 @@ Há múltiplas policies permissivas por papel/ação em diversas tabelas. Parte 
 7. Executar suíte Node 20/Playwright sem deploy.
 
 ## Status
-Auditoria estrutural iniciada. Achados confirmados, correções ainda não implementadas nem validadas.
+Auditoria estrutural iniciada. O primeiro lote foi implementado localmente com testes de regressão: restrição de `tenants`, fonte canônica de aniversário e preflight sem falso verde. Nenhuma migration foi aplicada ao remoto. Testes tenant A/B, typecheck, build e validação de banco descartável ainda são obrigatórios antes do gate de produção.

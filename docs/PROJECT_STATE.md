@@ -1,6 +1,6 @@
 # Navalio SaaS — Estado do projeto
 
-Atualizado em 10/10/2026, por auditoria remota somente leitura.
+Atualizado em 12/10/2026, por auditoria remota e primeiro lote local de correções.
 
 ## Baseline remoto
 - Repositório: `Raphahel30/barbersaas-platform`
@@ -29,6 +29,13 @@ Atualizado em 10/10/2026, por auditoria remota somente leitura.
 - Builder ponta a ponta.
 - Isolamento entre dois tenants em execução real.
 - Correspondência entre a versão publicada e este commit.
+
+## Correções preparadas no branch de auditoria
+- Migration local restringe leitura de `tenants` por linha e por coluna; ainda não aplicada remotamente.
+- Booking usa `profiles` como fonte canônica do aniversário.
+- Preflight não apresenta fallback `wa.me` como Evolution homologada nem declara prontidão total.
+- `npm run test:audit` passou para os três contratos em 12/10/2026.
+- Typecheck/build permanecem bloqueados neste workspace porque `npm ci` não concluiu e o ambiente usa Node 24 em vez de Node 20.
 
 ## Regra de evidência
 Nenhum item deve ser marcado como validado apenas por existir código, documentação ou commit. Exigir teste, resultado e referência.

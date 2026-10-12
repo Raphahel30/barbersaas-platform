@@ -174,27 +174,39 @@ export async function createAppointmentHold(
   let fidelityDiscountCents = 0
   let fidelityCardId: string | null = null
 
-  // 2. Validação estrita de Desconto de Aniversário no Backend (Verifica data de nascimento em clients)
+  // 2. Validação estrita de Desconto de Aniversário no Backend.
+  // `profiles` é a fonte canônica de clientes e sempre é filtrada pelo tenant.
   let isBirthdayBonusApplied = false
   const targetPhone = guestPhone ? guestPhone.replace(/\D/g, '') : null
-  let clientRecord: { id: string; birth_date?: string | null; name?: string } | null = null
+  let clientRecord: { id: string; birth_date?: string | null; full_name?: string } | null = null
 
   if (clientId) {
-    const { data: c } = await admin
-      .from('clients')
-      .select('id, birth_date, name')
+    const { data: profile, error: profileError } = await admin
+      .from('profiles')
+      .select('id, birth_date, full_name')
       .eq('id', clientId)
       .eq('tenant_id', input.tenantId)
+      .eq('role', 'client')
       .maybeSingle()
-    clientRecord = c as any
+    if (profileError) {
+      return { success: false, message: 'Não foi possível validar o benefício de aniversário.' }
+    }
+    clientRecord = profile
   } else if (targetPhone && targetPhone.length >= 8) {
-    const { data: c } = await admin
-      .from('clients')
-      .select('id, birth_date, name')
+    const { data: profile, error: profileError } = await admin
+      .from('profiles')
+      .select('id, birth_date, full_name')
       .eq('tenant_id', input.tenantId)
+      .eq('role', 'client')
       .ilike('phone', `%${targetPhone.slice(-8)}%`)
       .maybeSingle()
-    clientRecord = c as any
+    if (profileError) {
+      console.error('[Booking] Falha ao consultar perfil para benefício de aniversário.', {
+        code: profileError.code,
+      })
+    } else {
+      clientRecord = profile
+    }
   }
 
   if (clientRecord?.birth_date) {

@@ -12,6 +12,7 @@ Status: parcialmente mapeada remotamente.
 - Identificar lacunas e contratos duplicados.
 
 ## Fase 2 — Segurança e isolamento
+- Status: P0 implementado localmente; validação tenant A/B e aplicação remota pendentes.
 - Validar RLS por tenant.
 - Validar Master Admin e permissões.
 - Conferir storage, RPCs, rate limiting e logs.
@@ -31,6 +32,7 @@ Status: parcialmente mapeada remotamente.
 - PWA e comportamento mobile.
 
 ## Fase 5 — Validação candidata
+- Status: bloqueada neste workspace até instalação reproduzível em Node 20.
 - Typecheck, lint, build, scripts críticos e Playwright.
 - Testes desktop/mobile.
 - Evidências e plano de rollback.
