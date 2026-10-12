@@ -181,7 +181,7 @@ async function checkAsaasProduction(): Promise<CheckResult> {
 }
 
 // ============================================================================
-// 3. EVOLUTION API ONLINE / WA.ME FALLBACK READY
+// 3. CANAL WHATSAPP: INTEGRAÇÃO E FALLBACK SÃO ESTADOS DISTINTOS
 // ============================================================================
 async function checkWhatsAppReadiness(): Promise<CheckResult> {
   const evolutionUrl = process.env.EVOLUTION_API_URL
@@ -206,9 +206,9 @@ async function checkWhatsAppReadiness(): Promise<CheckResult> {
 
       if (response.ok) {
         return {
-          title: 'Evolution API Online / wa.me Fallback Ready',
+          title: 'Evolution API Online',
           passed: true,
-          message: 'Evolution API Online / wa.me Fallback Ready (Instância conectada)',
+          message: 'Evolution API acessível (instância respondeu ao health check)',
         }
       }
     } catch {
@@ -216,12 +216,13 @@ async function checkWhatsAppReadiness(): Promise<CheckResult> {
     }
   }
 
-  // Fallback wa.me sempre ativo e pronto
+  // O fallback mantém o contato manual disponível, mas não homologa a Evolution.
   return {
-    title: 'Evolution API Online / wa.me Fallback Ready',
+    title: 'Canal WhatsApp',
     passed: true,
-    message: 'Evolution API Online / wa.me Fallback Ready',
-    details: 'Motor de fallback wa.me ativo com abertura nativa em 1 clique.',
+    warning: true,
+    message: 'Fallback manual wa.me disponível; Evolution API não foi homologada nesta execução.',
+    details: 'Envio automático permanece não validado até a instância Evolution responder com sucesso.',
   }
 }
 
@@ -389,10 +390,12 @@ async function runPreflight() {
 
   // Emite relatório Checklist
   let hasFailures = false
+  let hasWarnings = false
 
   for (const item of results) {
     if (item.passed) {
       if (item.warning) {
+        hasWarnings = true
         console.log(`${YELLOW}[!] ${item.message}${RESET}`)
       } else {
         console.log(`${GREEN}[✔] ${item.message}${RESET}`)
@@ -410,9 +413,12 @@ async function runPreflight() {
   }
 
   console.log('\n' + '='.repeat(70))
-  if (!hasFailures) {
-    console.log(`${BOLD}${GREEN}🚀 TODOS OS SISTEMAS HOMOLOGADOS! PRONTO PARA O GO-LIVE!${RESET}`)
-    console.log('A plataforma está 100% pronta para ativar a 1ª barbearia comercial.')
+  if (!hasFailures && !hasWarnings) {
+    console.log(`${BOLD}${GREEN}✔ CHECAGENS DE CONFIGURAÇÃO CONCLUÍDAS SEM ALERTAS.${RESET}`)
+    console.log('Este preflight não substitui testes críticos, E2E, sandbox e aprovação de publicação.')
+  } else if (!hasFailures) {
+    console.log(`${BOLD}${YELLOW}⚠️  CHECAGENS CONCLUÍDAS COM ALERTAS.${RESET}`)
+    console.log('O ambiente não está homologado para publicação até que os alertas e testes funcionais sejam concluídos.')
   } else {
     console.log(`${BOLD}${RED}⚠️  ATENÇÃO: ALGUNS REQUISITOS DE PRODUÇÃO NÃO FORAM ATENDIDOS.${RESET}`)
     console.log('Revise as variáveis no .env de produção e rode novamente: npm run preflight')

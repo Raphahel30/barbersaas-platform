@@ -142,7 +142,7 @@ export async function quickWalkInAppointment(input: QuickWalkInInput) {
   }
 
   // Se o operador for barbeiro comum, só pode lançar atendimento para si mesmo
-  const isOwnerOrAdmin = authUser.email === 'rafaelcassu@gmail.com' || authUser.profile.role === 'owner' || authUser.profile.role === 'super_admin'
+  const isOwnerOrAdmin = authUser.profile.role === 'owner' || authUser.profile.role === 'super_admin'
   if (!isOwnerOrAdmin && authUser.profile.role === 'barber' && authUser.userId !== input.barberId) {
     return { success: false, message: 'Barbeiros só podem registrar atendimentos avulsos para si próprios.' }
   }

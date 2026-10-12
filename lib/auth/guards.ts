@@ -5,7 +5,6 @@ import { notFound, redirect } from 'next/navigation'
 import type { Database } from '@/types/database.types'
 import { createClient } from '@/utils/supabase/server'
 
-const SUPER_ADMIN_EMAIL = 'rafaelcassu@gmail.com'
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 type Profile = Database['public']['Tables']['profiles']['Row']
@@ -58,22 +57,22 @@ function assertTenantId(tenantId: string): void {
 
 export async function requireSuperAdmin(): Promise<{
   userId: string
-  email: typeof SUPER_ADMIN_EMAIL
+  email: string
 }> {
-  const { email, subject } = await getVerifiedIdentity()
+  const authUser = await requireAuthenticatedUser()
 
-  if (email !== SUPER_ADMIN_EMAIL) {
+  if (authUser.profile.role !== 'super_admin') {
     throw new Error('Acesso restrito ao Super Administrador da plataforma.')
   }
 
-  return { userId: subject, email: SUPER_ADMIN_EMAIL }
+  return { userId: authUser.userId, email: authUser.email }
 }
 
 export async function requireTenantOwner(tenantId: string): Promise<AuthorizedUser> {
   assertTenantId(tenantId)
   const authUser = await requireAuthenticatedUser()
 
-  const isSuperAdmin = authUser.email === SUPER_ADMIN_EMAIL || authUser.profile.role === 'super_admin'
+  const isSuperAdmin = authUser.profile.role === 'super_admin'
   const isOwner = authUser.profile.role === 'owner' && authUser.profile.tenant_id === tenantId
 
   if (!isSuperAdmin && !isOwner) {
@@ -91,7 +90,7 @@ export async function requireTenantStaff(tenantId: string): Promise<AuthorizedUs
   assertTenantId(tenantId)
   const authUser = await requireAuthenticatedUser()
 
-  const isSuperAdmin = authUser.email === SUPER_ADMIN_EMAIL || authUser.profile.role === 'super_admin'
+  const isSuperAdmin = authUser.profile.role === 'super_admin'
   const isStaff =
     ['owner', 'barber', 'receptionist'].includes(authUser.profile.role) &&
     authUser.profile.tenant_id === tenantId
@@ -107,7 +106,7 @@ export async function requireBarber(tenantId: string): Promise<AuthorizedUser> {
   assertTenantId(tenantId)
   const authUser = await requireAuthenticatedUser()
 
-  const isSuperAdmin = authUser.email === SUPER_ADMIN_EMAIL || authUser.profile.role === 'super_admin'
+  const isSuperAdmin = authUser.profile.role === 'super_admin'
   const isBarber =
     (authUser.profile.role === 'barber' || authUser.profile.role === 'owner') &&
     authUser.profile.tenant_id === tenantId

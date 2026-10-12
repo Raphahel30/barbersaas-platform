@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/utils/supabase/admin'
 import { generateTenantReferralLink, generateClientReferralLink } from '@/lib/growth/referrals'
+import { requireAuthenticatedUser, requireTenantOwner, requireTenantStaff } from '@/lib/auth/guards'
 
 export interface TenantReferralSummary {
   referralLink: string
@@ -16,7 +17,20 @@ export interface ClientReferralSummary {
   totalFriendsCompleted: number
 }
 
+async function requireClientReferralAccess(tenantId: string, clientId: string): Promise<void> {
+  const auth = await requireAuthenticatedUser()
+  const isOwnClient =
+    auth.profile.role === 'client' &&
+    auth.profile.tenant_id === tenantId &&
+    auth.userId === clientId
+
+  if (!isOwnClient) {
+    await requireTenantStaff(tenantId)
+  }
+}
+
 export async function getTenantReferralInfo(tenantId: string): Promise<TenantReferralSummary> {
+  await requireTenantOwner(tenantId)
   const admin = createAdminClient()
 
   const { data: tenant } = await admin
@@ -49,6 +63,7 @@ export async function getTenantReferralInfo(tenantId: string): Promise<TenantRef
 }
 
 export async function getClientReferralInfo(tenantId: string, clientId: string): Promise<ClientReferralSummary> {
+  await requireClientReferralAccess(tenantId, clientId)
   const admin = createAdminClient()
 
   const { data: tenant } = await admin

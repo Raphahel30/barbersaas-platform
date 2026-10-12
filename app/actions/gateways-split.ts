@@ -19,6 +19,7 @@ export async function getTenantSplitConfigAction(
   tenantId: string,
 ): Promise<{ success: boolean; data?: SplitConfigData; error?: string }> {
   try {
+    await requireOwner(tenantId)
     const admin = createAdminClient()
 
     const { data: settings } = await admin
